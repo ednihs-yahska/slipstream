@@ -150,9 +150,67 @@ export async function subjectOf(dir: string, rev: string): Promise<string> {
 
 /** Repo toplevel and the folder's prefix inside it ('' or 'sub/dir/'). */
 export async function repoPaths(dir: string): Promise<{ top: string; prefix: string }> {
-  const { stdout: top } = await run('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-  const { stdout: prefix } = await run('git', ['-C', dir, 'rev-parse', '--show-prefix']);
-  return { top: top.trim(), prefix: prefix.trim() };
+  try {
+    const { stdout: top } = await run('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
+    const { stdout: prefix } = await run('git', ['-C', dir, 'rev-parse', '--show-prefix']);
+    return { top: top.trim(), prefix: prefix.trim() };
+  } catch (e) {
+    // A bare clone (a remote target's cache) has no working tree: the project's folder
+    // inside the repository is recorded in the clone's own config.
+    const { stdout: bare } = await run('git', ['-C', dir, 'rev-parse', '--is-bare-repository']).catch(() => ({ stdout: '' }));
+    if (bare.trim() !== 'true') throw e;
+    const { stdout: prefix } = await run('git', ['-C', dir, 'config', '--get', 'slipstream.prefix']).catch(() => ({ stdout: '' }));
+    return { top: dir, prefix: prefix.trim() };
+  }
+}
+
+/** Whether `dir`'s folder differs between two revisions (works in bare clones too). */
+export async function changedBetween(dir: string, from: string, to: string): Promise<boolean> {
+  const { top, prefix } = await repoPaths(dir);
+  try {
+    await run('git', ['-C', top, 'diff', '--quiet', from, to, '--', prefix || '.']);
+    return false;
+  } catch (e) {
+    if ((e as { code?: number }).code === 1) return true;
+    throw e;
+  }
+}
+
+/** The project's `origin` as a remote target: URL, current branch, and its folder in the repository. */
+export async function originOf(dir: string): Promise<{ url: string; ref?: string; path?: string } | undefined> {
+  try {
+    const { stdout: url } = await run('git', ['-C', dir, 'remote', 'get-url', 'origin']);
+    const { prefix } = await repoPaths(dir);
+    const { stdout: branch } = await run('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD']).catch(() => ({ stdout: '' }));
+    const ref = branch.trim() && branch.trim() !== 'HEAD' ? branch.trim() : undefined;
+    const p = prefix.replace(/\/$/, '');
+    return { url: url.trim(), ...(ref ? { ref } : {}), ...(p ? { path: p } : {}) };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Make a practice folder its own git repository: `git init`, a .gitignore for
+ * the per-machine files, and a first commit (skipped, not failed, if git has
+ * no user identity configured). Returns whether it committed.
+ */
+export async function initPracticeRepo(dir: string, message: string): Promise<{ committed: boolean }> {
+  await run('git', ['-C', dir, 'init', '-q', '-b', 'main']);
+  const ignore = path.join(dir, '.gitignore');
+  const lines = ['.slipstream/link.local.json'];
+  const current = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+  const missing = lines.filter((l) => !current.split(/\r?\n/).includes(l));
+  if (missing.length) {
+    fs.appendFileSync(ignore, `${current && !current.endsWith('\n') ? '\n' : ''}# Slipstream: per-machine\n${missing.join('\n')}\n`);
+  }
+  await run('git', ['-C', dir, 'add', '-A']);
+  try {
+    await run('git', ['-C', dir, 'commit', '-q', '-m', message]);
+    return { committed: true };
+  } catch {
+    return { committed: false };
+  }
 }
 
 /**

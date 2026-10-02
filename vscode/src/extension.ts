@@ -11,6 +11,7 @@ import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextPro
 import { hintFor } from './ghost/hint';
 import { chooseMode, currentMode, Reveal } from './ghost/modes';
 import { linkPracticeFolder, openPracticeFolder, startPractice } from './practice/practice';
+import { clearLocalCheckout, clonePracticeRepo, pickLocalCheckout, storeProgress } from './practice/portable';
 import { replayCommit, replayContinue, replayNextCommit, replayRange } from './practice/replay';
 import { GIT_SCHEME, GitTargetProvider } from './target/gitTarget';
 import { Sessions } from './steps/Sessions';
@@ -149,6 +150,18 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     vscode.commands.registerCommand('slipstream.connectAgent', (opts?: { show?: boolean }) => connectAgent(context, opts)),
     vscode.commands.registerCommand('slipstream.setUpAgent', (args?: SetupArgs) => setUpAgent(sessions, args)),
     vscode.commands.registerCommand('slipstream.startPractice', () => startPractice(context, store)),
+    vscode.commands.registerCommand('slipstream.clonePracticeRepo', (args?: { url?: string; parent?: string; show?: boolean }) =>
+      clonePracticeRepo(context, store, args),
+    ),
+    vscode.commands.registerCommand('slipstream.pickLocalCheckout', (arg?: string | Node, checkout?: string) =>
+      pickLocalCheckout(store, rootOf(arg), checkout),
+    ),
+    vscode.commands.registerCommand('slipstream.clearLocalCheckout', (arg?: string | Node) => clearLocalCheckout(store, rootOf(arg))),
+    vscode.commands.registerCommand('slipstream.fetchRemotes', async () => {
+      const n = await sessions.fetchRemotes();
+      if (n === 0) void vscode.window.showInformationMessage('No practice folder here uses a remote target.');
+    }),
+    vscode.commands.registerCommand('slipstream.storeProgress', (arg?: string | Node) => storeProgress(sessions, rootOf(arg))),
     vscode.commands.registerCommand('slipstream.replayCommit', () => replayCommit(context, store)),
     vscode.commands.registerCommand('slipstream.replayRange', () => replayRange(context, store)),
     vscode.commands.registerCommand('slipstream.replayNextCommit', (arg?: string | Node) => {

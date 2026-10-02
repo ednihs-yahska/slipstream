@@ -49,6 +49,9 @@ src/
 ```
 
 
+Integration tests set `SLIPSTREAM_CACHE_DIR` (a temporary remote-target cache) and a git identity for
+the extension host in `test/integration/runTests.ts`, so they never touch your real cache or git config.
+
 Large projects: a cold scan of a 3,000-file git project takes about 0.7 s and a rescan about 0.1 s.
 While you type, only the edited file is recomputed. Set the **Slipstream** output channel to *Debug* to
 see scan timings.
@@ -64,7 +67,7 @@ MCP server `dist/mcp.js`) and writes
 `slipstream-<version>.vsix`. Install it locally with:
 
 ```bash
-code --install-extension slipstream-0.1.0.vsix
+code --install-extension slipstream-0.2.0.vsix
 ```
 
 The `repository` field points at <https://github.com/ednihs-yahska/slipstream>. The extension sits in

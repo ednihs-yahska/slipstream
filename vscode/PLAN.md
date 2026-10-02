@@ -247,7 +247,7 @@ Practice folders (inside/outside project, seeded from a commit or empty), link f
 - **MCP server** (`dist/mcp.js`, stdio, read-only): `slipstream_list_practice_folders`, `slipstream_progress`, `slipstream_read_practice_file` (refuses paths outside the practice folder or in its metadata). **Connect Your Agent (MCP)…** copies it to global storage (stable across updates, refreshed on activation) and shows/types the `claude mcp add … --scope local` line without running it. Agent instructions mention the tools.
 - **Not done:** symbol-level steps (a step per function rather than per file) and within-file dependency order; a language-server based version could replace the import patterns. "Reveal after N seconds" is per spot, not per line.
 
-**M6 — Portable practice repos** *(planned: version 0.2.0)*
+**M6 — Portable practice repos** ✅ *built — version 0.2.0*
 
 Goal: a practice folder can be its own git project, pushed anywhere, cloned on another machine, and still find its target, whether that's a local checkout or a remote repository.
 
@@ -268,7 +268,14 @@ Design:
 
 Tests: a local bare repository stands in for the remote (clone, fetch, branch moves, pinned refs), plus a practice repo cloned into a second temp folder resolving via override, path and remote in turn.
 
-Open questions: fetch cadence for branch targets (on open, on demand, and every N minutes?); whether `progress.json` should merge across machines or last-write-wins; whether the remote cache is shared between practice repos that point at the same remote.
+As built:
+- `src/target/remotes.ts`: bare clones in `~/.cache/slipstream/remotes` (`%LOCALAPPDATA%` on Windows; `SLIPSTREAM_CACHE_DIR` overrides), one per (url, path), the folder recorded in the clone's `slipstream.prefix` config; clone into a temporary name and rename, so a half-finished clone is never used; `git rev-parse` resolution cached until the next fetch. Shared by the extension and the MCP server.
+- Resolution order as designed, with one change found while writing tests: **a committed path wins only if it is a checkout of the remote** (its `origin` matches). A relative `../..` in a practice repo cloned elsewhere usually exists, as an unrelated folder.
+- Links carry `source` (`override` / `path` / `remote`), `refLabel` (what was asked for: a branch stays one session as it moves) and `pinned` (link.json pins a commit). Replay UI keys off `pinned`, not `ref`, since a remote target always reads a commit.
+- `updateLink` edits link.json in place, so Next Commit / Continue keep a relative target and a remote.
+- Fetch cadence: when a session starts, every `slipstream.remoteFetchMinutes` (10), and on Fetch Remote Targets. `progress.json`: last write wins. Cache: shared per (url, path).
+- Workspace Trust: `untrustedWorkspaces.supported: false` with a description; `virtualWorkspaces: false`.
+- Tests: 12 unit tests against a local bare remote; 4 integration tests (clone and practise against a remote, follow a pushed commit, switch to and from a local checkout, clone a practice repo).
 
 ---
 

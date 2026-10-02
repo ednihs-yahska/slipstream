@@ -594,4 +594,90 @@ describe('Slipstream', () => {
       assert.ok(!script.includes(path.resolve(__dirname, '../../..')), 'not inside the extension folder');
     });
   });
+
+  describe('M6: portable practice repos', () => {
+    const sh = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe' }).toString().trim();
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tc-m6-int-')));
+    const remote = path.join(root, 'remote.git');
+    const work = path.join(root, 'work');
+    // Inside the workspace, so the Steps view finds it; its committed target doesn't exist here.
+    const prac = (...p: string[]) => path.join(project(), 'portable-practice', ...p);
+    const session = () => api().sessions.list().find((x) => x.link.practiceRoot === prac());
+    const pending = () => (session()?.pending ?? []).map((x) => `${x.kind} ${x.path}`);
+
+    before(async () => {
+      execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote]);
+      execFileSync('git', ['clone', '-q', remote, work], { stdio: 'pipe' });
+      fs.mkdirSync(path.join(work, 'app'), { recursive: true });
+      fs.writeFileSync(path.join(work, 'app/hello.ts'), 'export const hello = 1;\n');
+      sh(work, 'add', '-A');
+      sh(work, 'commit', '-qm', 'hello');
+      sh(work, 'push', '-q', 'origin', 'main');
+      fs.mkdirSync(prac('.slipstream'), { recursive: true });
+      fs.writeFileSync(
+        prac('.slipstream/link.json'),
+        JSON.stringify({ target: '/Users/someone-else/project/app', remote: { url: remote, ref: 'main', path: 'app' } }),
+      );
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return session()?.link.source === 'remote' && pending().length > 0;
+      }, 15000);
+    });
+
+    it('clones the remote and practises against it', async () => {
+      assert.deepStrictEqual(pending(), ['create hello.ts']);
+      await vscode.commands.executeCommand('slipstream.steps.createFile', {
+        type: 'step',
+        session: session()!,
+        step: session()!.pending[0],
+        done: false,
+      });
+      await vscode.commands.executeCommand('slipstream.acceptLine');
+      assert.strictEqual(vscode.window.activeTextEditor!.document.getText(), 'export const hello = 1;');
+      await vscode.window.activeTextEditor!.document.save();
+    });
+
+    it('follows the branch when the remote moves', async () => {
+      fs.writeFileSync(path.join(work, 'app/later.ts'), 'export const later = 2;\n');
+      sh(work, 'add', '-A');
+      sh(work, 'commit', '-qm', 'later');
+      sh(work, 'push', '-q', 'origin', 'main');
+      await vscode.commands.executeCommand('slipstream.fetchRemotes');
+      await eventually(async () => pending().includes('create later.ts'), 15000);
+      assert.strictEqual(session()!.link.ref, sh(work, 'rev-parse', 'HEAD'));
+    });
+
+    it('uses a local checkout on this machine when told to', async () => {
+      await vscode.commands.executeCommand('slipstream.pickLocalCheckout', prac(), path.join(work, 'app'));
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return session()?.link.source === 'override';
+      });
+      assert.strictEqual(session()!.link.targetRoot, path.join(work, 'app'));
+      assert.strictEqual(session()!.link.ref, undefined); // the working tree, live
+      await vscode.commands.executeCommand('slipstream.clearLocalCheckout', prac());
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return session()?.link.source === 'remote';
+      });
+    });
+
+    it('clones a practice repository and resolves it through the remote', async () => {
+      const practiceRepo = path.join(root, 'practice-repo');
+      fs.mkdirSync(path.join(practiceRepo, '.slipstream'), { recursive: true });
+      fs.writeFileSync(
+        path.join(practiceRepo, '.slipstream/link.json'),
+        JSON.stringify({ target: '../work/app', remote: { url: remote, ref: 'main', path: 'app' } }),
+      );
+      sh(root, 'init', '-q', '-b', 'main', practiceRepo);
+      sh(practiceRepo, 'add', '-A');
+      sh(practiceRepo, 'commit', '-qm', 'practice');
+      const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tc-m6-clone-')));
+      const dest = await vscode.commands.executeCommand<string>('slipstream.clonePracticeRepo', { url: practiceRepo, parent, show: false });
+      assert.strictEqual(dest, path.join(parent, 'practice-repo'));
+      // '../work/app' doesn't exist next to the clone, so the remote is the target.
+      const { readLink } = await import('../../../src/target/links');
+      assert.strictEqual(readLink(dest)!.source, 'remote');
+    });
+  });
 });

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { isInside, META_DIR, readLink, writeLink } from '../target/links';
 import { TargetStore } from '../target/TargetStore';
-import { excludeFromGit, gitArchive, gitInfo, recentCommits } from './git';
+import { excludeFromGit, gitArchive, gitInfo, initPracticeRepo, originOf, recentCommits } from './git';
 import { pickCommit } from './pickers';
 import { hideFromSearch } from './search';
 
@@ -38,12 +38,17 @@ export async function startPractice(context: vscode.ExtensionContext, store: Tar
     return;
   }
 
+  let seeded: string | undefined;
   if (!hasUserFiles(practiceRoot)) {
-    const seeded = await seed(targetRoot, practiceRoot);
+    seeded = await seed(targetRoot, practiceRoot);
     if (seeded === undefined) return;
   }
 
-  writeLink(practiceRoot, targetRoot);
+  // The project's origin travels in the link, so the practice folder still finds
+  // its project after being cloned onto another machine.
+  const remote = await originOf(targetRoot);
+  writeLink(practiceRoot, targetRoot, remote ? { remote } : {});
+  await offerGitInit(practiceRoot, `Start practising ${path.basename(targetRoot)}${seeded ? ` from ${seeded.slice(0, 7)}` : ''}`);
   const hidden = { git: await excludeFromGit(targetRoot, practiceRoot), search: await hideFromSearch(practiceRoot) };
   await remember(context, practiceRoot);
   store.invalidate();
@@ -162,4 +167,27 @@ export async function announce(practiceRoot: string, hidden: { git: boolean; sea
   if (choice === 'Open in New Window') await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
   if (choice === 'Set Up Agent…') await vscode.commands.executeCommand('slipstream.setUpAgent');
   if (choice === 'Add to Workspace') vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri });
+}
+
+/** Offer to make a new practice folder its own git repository, so it can be pushed and cloned elsewhere. */
+export async function offerGitInit(practiceRoot: string, message: string) {
+  if (fs.existsSync(path.join(practiceRoot, '.git'))) return;
+  const pick = await vscode.window.showQuickPick(
+    [
+      { label: '$(repo) Make it a git repository', description: 'recommended', detail: 'Commit your practice as you go, push it, and clone it onto another machine.', yes: true },
+      { label: 'Not now', detail: 'You can run `git init` in it any time.', yes: false },
+    ],
+    { title: 'Slipstream: make the practice folder its own git repository?' },
+  );
+  if (!pick?.yes) return;
+  try {
+    const { committed } = await initPracticeRepo(practiceRoot, message);
+    if (!committed) {
+      void vscode.window.showInformationMessage(
+        'Practice folder is a git repository now. Nothing was committed: set git user.name and user.email, then commit.',
+      );
+    }
+  } catch (e) {
+    void vscode.window.showErrorMessage(`git init failed: ${(e as Error).message}`);
+  }
 }

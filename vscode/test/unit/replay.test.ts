@@ -89,6 +89,9 @@ it('links remember the commit and replay position', () => {
     practiceRoot: practice,
     targetRoot: app,
     ref: hashes[1],
+    refLabel: hashes[1],
+    pinned: true,
+    source: 'path',
     replay: { commits: [hashes[1], hashes[3]], index: 0 },
   });
 });
