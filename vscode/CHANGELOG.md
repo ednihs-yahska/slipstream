@@ -3,6 +3,8 @@
 ## 0.3.0 (pre-release)
 
 The first published version, on the Marketplace's pre-release channel. It includes everything below.
+Listed as **Slipstream Practice**, since "Slipstream" is taken on the Marketplace; the extension ID stays
+`EdnihsYahska.slipstream`.
 
 **Typing speed and time left.**
 
