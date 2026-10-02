@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 (planned)
+
+- **Portable practice repos:** practice folders as their own git projects that can be cloned anywhere,
+  with remote git targets, per-machine overrides and optional progress in the repo. See PLAN.md, M6.
+
 ## 0.1.0 (preview)
 
 First release.

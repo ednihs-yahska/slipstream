@@ -247,6 +247,29 @@ Practice folders (inside/outside project, seeded from a commit or empty), link f
 - **MCP server** (`dist/mcp.js`, stdio, read-only): `slipstream_list_practice_folders`, `slipstream_progress`, `slipstream_read_practice_file` (refuses paths outside the practice folder or in its metadata). **Connect Your Agent (MCP)…** copies it to global storage (stable across updates, refreshed on activation) and shows/types the `claude mcp add … --scope local` line without running it. Agent instructions mention the tools.
 - **Not done:** symbol-level steps (a step per function rather than per file) and within-file dependency order; a language-server based version could replace the import patterns. "Reveal after N seconds" is per spot, not per line.
 
+**M6 — Portable practice repos** *(planned: version 0.2.0)*
+
+Goal: a practice folder can be its own git project, pushed anywhere, cloned on another machine, and still find its target, whether that's a local checkout or a remote repository.
+
+What already works: a practice folder outside the project can be `git init`-ed and pushed (scans skip `.git`); one nested in `.slipstream/practice/` can be too, since the project's git excludes `.slipstream/`. Its commits become a history of your own typing.
+
+What breaks today:
+1. **The link is a path.** `target` is `../..` (nested) or absolute, so a practice repo cloned on its own, or on another machine, points at nothing.
+2. **Progress is per machine.** Done ticks and typed-vs-Tab stats live in VS Code's workspace state.
+3. **Targets must be on disk.** Replays read commits through git, but only from a local repository.
+
+Design:
+- **Remote targets:** `{ "target": { "remote": "https://github.com/owner/project.git", "ref": "main" } }`. Slipstream fetches into a cache in extension global storage and reads files with the existing `git ls-tree` / `git cat-file` code. A branch `ref` follows the branch (refetched on demand and on a timer); a commit hash pins it (a replay). Private repos use the user's own git credentials. A fetch never copies or runs the remote's hooks.
+- **Per-machine override:** an untracked `.slipstream/link.local.json` (`{ "target": "~/code/project" }`) wins when present. Resolution order: local override, then the committed path if it exists, then the remote cache. You get live working-tree targets where you have a checkout, and the remote everywhere else.
+- **Progress in the repo (opt-in):** `.slipstream/progress.json` holds seen steps and stats, so a cloned practice repo shows the same ticks. Workspace state stays the default.
+- **Clone a Practice Repo…:** clone, resolve the target, open the Steps view. Start Practice offers to `git init` the folder it creates, with a `.gitignore` for `link.local.json`.
+- **Links:** write a relative `target` only when both folders are in the same repository; otherwise absolute plus, if the project has an `origin` remote, a `remote` fallback.
+- **Workspace Trust:** decide and declare `capabilities.untrustedWorkspaces` (fetching remotes makes this matter). Likely `false` with a description, since Slipstream runs git in the workspace.
+
+Tests: a local bare repository stands in for the remote (clone, fetch, branch moves, pinned refs), plus a practice repo cloned into a second temp folder resolving via override, path and remote in turn.
+
+Open questions: fetch cadence for branch targets (on open, on demand, and every N minutes?); whether `progress.json` should merge across machines or last-write-wins; whether the remote cache is shared between practice repos that point at the same remote.
+
 ---
 
 ## 9. Decisions
