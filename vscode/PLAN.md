@@ -239,7 +239,7 @@ Practice folders (inside/outside project, seeded from a commit or empty), link f
 - **Stats** (typed vs Tab-filled, time) in the session tooltip as well as the completion notice.
 - **CI:** GitHub Actions at the repo root (`.github/workflows/slipstream.yml`): typecheck, unit and integration tests; Linux, macOS and Windows on every push and pull request; packages the `.vsix` as an artifact.
 - **Repository:** <https://github.com/ednihs-yahska/slipstream> (`repository` field set; the extension lives in `vscode/`).
-- **Open:** the Marketplace icon is a placeholder until the Slipstream logo is saved as `media/logo.png`.
+- **Icon:** the Slipstream logo (`media/logo.png`), scaled to a 256×256 `media/icon.png`.
 
 **M5 — Nice-to-haves** ✅ *built*
 - **Practice modes** (`slipstream.mode`): *ghost* (default); *delayed*: the ghost appears after `revealDelaySeconds` stuck at a spot (typing a correct character restarts the clock); *hint*: never the code, a nudge after the cursor (lines · first word · names it defines). Tab/Shift+Tab peek in every mode. Status bar shows the mode.

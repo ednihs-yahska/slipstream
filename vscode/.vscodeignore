@@ -8,7 +8,7 @@ node_modules/**
 .vscode-test/**
 .github/**
 dist/**/*.map
-media/icon.svg
+media/logo.png
 esbuild.mjs
 tsconfig.json
 vitest.config.ts

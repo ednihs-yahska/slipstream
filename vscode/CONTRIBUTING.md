@@ -91,8 +91,9 @@ Publishing to the Visual Studio Marketplace is manual and needs the publisher's 
    open-vsx.org, create a token, `npx ovsx create-namespace EdnihsYahska -p <token>` once, then
    `npx ovsx publish slipstream-<version>.vsix -p <token>`.
 
-The Marketplace icon must be at least 128×128 (256×256 for Retina) and may not be an SVG; replace the
-placeholder `media/icon.png` with the logo at 256×256.
+The Marketplace icon must be at least 128×128 (256×256 for Retina) and may not be an SVG. `media/icon.png`
+is the logo (`media/logo.png`, 1000×1000, not packaged) scaled to 256×256:
+`sips -z 256 256 media/logo.png --out media/icon.png`.
 
 Not yet tested: that the `Tab` binding beats VS Code's built-in Tab (accept inline suggestion) on a real
 keypress. The integration tests call the commands directly, and VS Code's docs don't say where extension
