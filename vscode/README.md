@@ -40,6 +40,21 @@ replays, remote targets, and `.gitignore` support. Works with any coding agent; 
      commit picked from the history (you retype everything since, in one go), or empty.
 3. Open the **Slipstream** view in the activity bar and work through the steps.
 
+## Typing speed and time left
+
+Slipstream measures how fast you actually type: real keystrokes only. Tab and Shift+Tab never count, nor
+do undo/redo, pastes or autocomplete. Pauses longer than five seconds aren't counted as typing time.
+
+* **Status bar:** `3 changes left · 42 wpm · ~12 min left`. The speed is your last minute of typing.
+* **Steps view:** time left per practice folder. The tooltip has your speed now, this session and overall,
+  how many keys were corrections, active typing time, and estimates for the session and the whole
+  project (for a range replay, the commits still to come).
+* **Slipstream: Show Practice Stats:** the same for every practice folder, grouped by project.
+
+Estimates are characters still to type (indentation excluded), less the share you usually fill with Tab,
+at your speed. Until you've typed enough they say "about…" and use 40 wpm. Turn it all off with
+`slipstream.showTypingSpeed`.
+
 ## Working with your agent
 
 Run **Slipstream: Set Up Agent…** (also offered after Start Practice). It shows a preview of every
@@ -206,6 +221,8 @@ put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
 | `slipstream.revealDelaySeconds` | `3` | in `delayed` mode, how long you're stuck before the code appears |
 | `slipstream.stepOrder` | `dependencies` | without a plan: `dependencies` (imported files first) or `path` |
 | `slipstream.remoteFetchMinutes` | `10` | how often to fetch remote targets; `0` only at session start and on demand |
+| `slipstream.showTypingSpeed` | `true` | typing speed and time left in the status bar and Steps view |
+| `slipstream.idleSeconds` | `5` | pauses longer than this aren't counted as typing time |
 
 Errors and (at debug level) scan timings go to the **Slipstream** output channel.
 
@@ -218,6 +235,7 @@ Errors and (at debug level) scan timings go to the **Slipstream** output channel
 | Slipstream: Set Up Agent… | agent instructions + Claude Code deny rules, previewed first |
 | Slipstream: Connect Your Agent (MCP)… | read-only tools for your agent to see your progress |
 | Slipstream: Choose Practice Mode… | ghost, delayed, or hint |
+| Slipstream: Show Practice Stats | speed, accuracy and time left, per practice folder and project |
 | Slipstream: Open Practice Folder… | open a known practice folder in a new window |
 | Slipstream: Clone a Practice Repository… | clone a practice repo and resolve its project |
 | Slipstream: Use a Local Checkout of the Project… / Stop Using the Local Checkout | where the project is on this machine |

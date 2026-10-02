@@ -258,3 +258,31 @@ export async function excludeFiles(dir: string, rels: string[]): Promise<string[
   }
   return added;
 }
+
+/** Git's empty tree: what a root commit is diffed against. */
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+/**
+ * Lines a commit added inside `dir`'s folder (works in bare clones too), for
+ * estimating how long typing it will take. Cached: commits don't change.
+ */
+const addedCache = new Map<string, string[]>();
+export async function addedLines(dir: string, commit: string): Promise<string[]> {
+  const key = `${dir}\0${commit}`;
+  const hit = addedCache.get(key);
+  if (hit) return hit;
+  const { top, prefix } = await repoPaths(dir);
+  const parent = await run('git', ['-C', top, 'rev-parse', '--verify', '--quiet', `${commit}^`]).then(
+    (r) => r.stdout.trim(),
+    () => EMPTY_TREE,
+  );
+  const { stdout } = await run('git', ['-C', top, 'diff', '--unified=0', '--no-color', '--no-ext-diff', parent, commit, '--', prefix || '.'], {
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const lines = stdout
+    .split('\n')
+    .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
+    .map((l) => l.slice(1));
+  addedCache.set(key, lines);
+  return lines;
+}

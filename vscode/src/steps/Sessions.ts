@@ -7,6 +7,9 @@ import { KNOWN_KEY } from '../practice/practice';
 import { clearLinkCache, isInside, Link, LINK_FILE, readLink } from '../target/links';
 import { ensureClone, fetchRemote, isCloned } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
+import { addedLines } from '../practice/git';
+import { charsToType, estimate, Estimate, formatEstimate } from '../stats/estimate';
+import { classify, correctionRate, SpeedMeter, wpm } from '../stats/speed';
 import { applyPlan, Plan, readPlan } from './plan';
 import { createProgressFile, progressKey, readProgress, StoredProgress, writeProgress } from './progress';
 import { toKey } from './scan';
@@ -19,6 +22,36 @@ export interface Stats {
   /** Non-whitespace characters Tab / Shift+Tab filled in. */
   accepted: number;
   startedAt: number;
+  /** Real keystrokes (see stats/speed.ts), characters they produced, Backspace/Delete, and active typing time. */
+  keys?: number;
+  chars?: number;
+  corrections?: number;
+  activeMs?: number;
+}
+
+/** Speed and time left, for display. */
+export interface Pace {
+  /** Words per minute over the last minute of typing, this session's average, and yours across sessions. */
+  current?: number;
+  average?: number;
+  personal?: number;
+  /** Corrections as a share of keystrokes. */
+  corrections?: number;
+  /** Characters left to type in this session, and in the rest of the project (later replay commits included). */
+  charsLeft: number;
+  projectCharsLeft: number;
+  session: Estimate;
+  project: Estimate;
+  /** Active typing time spent in this session so far. */
+  spentMs: number;
+}
+
+/** Your typing across all sessions and projects (global state, never committed). */
+interface Profile {
+  chars: number;
+  activeMs: number;
+  typed: number;
+  accepted: number;
 }
 
 /** One practice folder and its steps. */
@@ -29,6 +62,7 @@ export interface Session {
   /** The agent's plan (`.slipstream/plan.md` in the project), if any. */
   plan?: Plan;
   stats: Stats;
+  pace: Pace;
   /** Steps still to do. */
   pending: Step[];
   /** Steps done: seen at some point, no longer pending. */
@@ -41,6 +75,9 @@ interface State {
   subject?: string;
   plan?: Plan;
   stats: Stats;
+  meter: SpeedMeter;
+  /** Characters in the replay's later commits (computed once per commit). */
+  laterChars: number;
   pending: Step[];
   /** Every step ever seen in this session, by key (persisted). */
   seen: Record<string, Step>;
@@ -66,6 +103,7 @@ export class Sessions implements vscode.Disposable {
   private discoverTimer?: NodeJS.Timeout;
   private readonly typingTimers = new Map<string, NodeJS.Timeout>();
   private readonly expected = new Map<string, string>();
+  private readonly internal = new Set<string>();
 
   readonly onDidChange = this.emitter.event;
 
@@ -158,6 +196,11 @@ export class Sessions implements vscode.Disposable {
     this.expected.set(uri.toString(), text);
   }
 
+  /** The next edit to `uri` is Slipstream's own (e.g. Delete Marked): neither typing nor a correction. */
+  expectInternal(uri: vscode.Uri) {
+    this.internal.add(uri.toString());
+  }
+
   /** Wait for any pending scan (used by tests and commands that need fresh steps). */
   async settle() {
     for (const s of this.states.values()) {
@@ -172,7 +215,7 @@ export class Sessions implements vscode.Disposable {
   private view(s: State): Session {
     const pendingKeys = new Set(s.pending.map(stepKey));
     const done = sortSteps(Object.entries(s.seen).filter(([k]) => !pendingKeys.has(k)).map(([, step]) => step));
-    return { link: s.link, subject: s.subject, plan: s.plan, stats: s.stats, pending: s.pending, done, scanned: s.scanned };
+    return { link: s.link, subject: s.subject, plan: s.plan, stats: s.stats, pace: this.pace(s), pending: s.pending, done, scanned: s.scanned };
   }
 
   private scheduleDiscover() {
@@ -209,8 +252,14 @@ export class Sessions implements vscode.Disposable {
       if (this.states.has(link.practiceRoot)) continue;
       // Progress stored in the practice folder (if it opted in) wins over this machine's.
       const stored = readProgress(link.practiceRoot, progressKey(link.refLabel));
+      const statsNow = stored?.stats ?? this.context.workspaceState.get<Stats>(statsKey(link));
       const s: State = {
         link,
+        meter: new SpeedMeter(
+          { keys: statsNow?.keys ?? 0, chars: statsNow?.chars ?? 0, corrections: statsNow?.corrections ?? 0, activeMs: statsNow?.activeMs ?? 0 },
+          1000 * vscode.workspace.getConfiguration('slipstream').get<number>('idleSeconds', 5),
+        ),
+        laterChars: 0,
         stats: stored?.stats ?? this.context.workspaceState.get<Stats>(statsKey(link)) ?? { typed: 0, accepted: 0, startedAt: Date.now() },
         pending: [],
         seen: stored?.seen ?? this.context.workspaceState.get<Record<string, Step>>(seenKey(link), {}),
@@ -295,6 +344,7 @@ export class Sessions implements vscode.Disposable {
       return;
     }
     log.debug(`Scanned ${s.link.practiceRoot} in ${Date.now() - started} ms: ${s.pending.length} steps left`);
+    await this.computeLaterChars(s);
     s.scanned = true;
     await this.record(s);
   }
@@ -305,7 +355,7 @@ export class Sessions implements vscode.Disposable {
     if (doc.uri.scheme !== 'file') return;
     const s = [...this.states.values()].find((x) => isInside(doc.uri.fsPath, x.link.practiceRoot));
     if (!s) return;
-    this.count(s, doc.uri, e.contentChanges);
+    this.count(s, doc.uri, e);
     if (!s.scanned) return;
     const rel = toKey(path.relative(s.link.practiceRoot, doc.uri.fsPath));
     const existing = s.pending.find((p) => p.path === rel && p.kind !== 'rename');
@@ -330,19 +380,105 @@ export class Sessions implements vscode.Disposable {
     );
   }
 
-  private count(s: State, uri: vscode.Uri, changes: readonly vscode.TextDocumentContentChangeEvent[]) {
-    const expected = this.expected.get(uri.toString());
-    for (const c of changes) {
+  private count(s: State, uri: vscode.Uri, e: vscode.TextDocumentChangeEvent) {
+    const key = uri.toString();
+    if (this.internal.delete(key)) return;
+    const expected = this.expected.get(key);
+    const accepted = expected !== undefined && e.contentChanges.some((c) => c.text === expected);
+    // Who produced the code: typed versus Tab-filled characters (pastes count as typed here).
+    for (const c of e.contentChanges) {
       const chars = c.text.replace(/\s+/g, '').length;
       if (!chars) continue;
-      if (expected !== undefined && c.text === expected) {
+      if (accepted && c.text === expected) {
         s.stats.accepted += chars;
-        this.expected.delete(uri.toString());
+        this.expected.delete(key);
       } else {
         s.stats.typed += chars;
       }
     }
+    // How fast: real keystrokes only.
+    const k = classify(e.contentChanges, { accepted, undoRedo: e.reason !== undefined });
+    const before = s.meter.totals;
+    s.meter.record(k);
+    const after = s.meter.totals;
+    s.stats = { ...s.stats, ...after };
+    this.addToProfile({
+      chars: after.chars - before.chars,
+      activeMs: after.activeMs - before.activeMs,
+      typed: 0,
+      accepted: 0,
+    });
     void this.context.workspaceState.update(statsKey(s.link), s.stats);
+    if (k.keys) this.paceChanged();
+  }
+
+  private paceTimer?: NodeJS.Timeout;
+  /** Speed changes with every key; refresh the display at most a few times a second. */
+  private paceChanged() {
+    if (this.paceTimer) return;
+    this.paceTimer = setTimeout(() => {
+      this.paceTimer = undefined;
+      this.emitter.fire();
+    }, 300);
+  }
+
+  private profile(): Profile {
+    return this.context.globalState.get<Profile>(PROFILE_KEY) ?? { chars: 0, activeMs: 0, typed: 0, accepted: 0 };
+  }
+
+  private addToProfile(d: Profile) {
+    if (!d.chars && !d.activeMs && !d.typed && !d.accepted) return;
+    const p = this.profile();
+    void this.context.globalState.update(PROFILE_KEY, {
+      chars: p.chars + d.chars,
+      activeMs: p.activeMs + d.activeMs,
+      typed: p.typed + d.typed,
+      accepted: p.accepted + d.accepted,
+    });
+  }
+
+  /** Speed, accuracy and time left for one session, from its own data where there's enough, else yours overall. */
+  private pace(s: State): Pace {
+    const profile = this.profile();
+    const average = s.meter.average();
+    const personal = wpm(profile.chars, profile.activeMs);
+    const enough = (s.stats.chars ?? 0) >= 200;
+    const speed = enough ? average : (personal ?? average);
+    const measuredChars = enough ? (s.stats.chars ?? 0) : profile.chars;
+    const own = s.stats.typed + s.stats.accepted;
+    const all = profile.typed + profile.accepted;
+    const tabShare = own >= 200 ? s.stats.accepted / own : all >= 200 ? profile.accepted / all : 0;
+    const charsLeft = s.pending.reduce((n, p) => n + (p.charsLeft ?? 0), 0);
+    const projectCharsLeft = charsLeft + s.laterChars;
+    return {
+      current: s.meter.current(),
+      average,
+      personal,
+      corrections: correctionRate(s.meter.totals),
+      charsLeft,
+      projectCharsLeft,
+      session: estimate(charsLeft, { wpm: speed, tabShare, measuredChars }),
+      project: estimate(projectCharsLeft, { wpm: speed, tabShare, measuredChars }),
+      spentMs: s.stats.activeMs ?? 0,
+    };
+  }
+
+  /** Characters in a replay's commits after the current one: the rest of "the whole project". */
+  private async computeLaterChars(s: State) {
+    const r = s.link.replay;
+    if (!s.link.pinned || !r) {
+      s.laterChars = 0;
+      return;
+    }
+    let total = 0;
+    for (const commit of r.commits.slice(r.index + 1)) {
+      try {
+        total += charsToType((await addedLines(s.link.targetRoot, commit)).join('\n'));
+      } catch (e) {
+        log.warn(`Could not size commit ${commit.slice(0, 7)}: ${(e as Error).message.split('\n')[0]}`);
+      }
+    }
+    s.laterChars = total;
   }
 
   /** First use of a remote target: clone it into the cache, then re-resolve the link. */
@@ -394,13 +530,16 @@ export class Sessions implements vscode.Disposable {
     // At the end of a replay, there may be more to type: later commits and uncommitted work.
     const canContinue = !!s.link.pinned && !hasNext && (await moreAfter(s.link));
     const actions = [...(hasNext ? ['Next Commit'] : []), ...(canContinue ? ['Continue to Current Files'] : [])];
-    const choice = await vscode.window.showInformationMessage(`${what}. ${summarize(s.stats)}`, ...actions);
+    const pace = this.pace(s);
+    const left = s.laterChars > 0 ? ` ~${formatDurationLeft(pace.project)} left in this replay.` : '';
+    const choice = await vscode.window.showInformationMessage(`${what}. ${summarize(s.stats)}${left}`, ...actions);
     if (choice === 'Next Commit') await vscode.commands.executeCommand('slipstream.replayNextCommit', s.link.practiceRoot);
     if (choice === 'Continue to Current Files') await vscode.commands.executeCommand('slipstream.replayContinue', s.link.practiceRoot);
   }
 
   dispose() {
     clearInterval(this.fetchTimer);
+    clearTimeout(this.paceTimer);
     for (const s of this.states.values()) {
       s.watchers.forEach((w) => w.dispose());
       clearTimeout(s.timer);
@@ -418,11 +557,23 @@ function statsKey(link: Link): string {
   return `slipstream.stats:${identity(link)}`;
 }
 
-/** "In 12 min, you typed 78% yourself; Tab filled 22%." */
+const PROFILE_KEY = 'slipstream.typingProfile';
+
+function formatDurationLeft(e: Estimate): string {
+  return formatEstimate(e).replace(/^~/, '');
+}
+
+/** "Took 12 min. You typed 78% yourself at 38 wpm, 6% corrections; Tab filled 22%." */
 export function summarize(stats: Stats): string {
   const mins = Math.max(1, Math.round((Date.now() - stats.startedAt) / 60000));
   const total = stats.typed + stats.accepted;
   if (total === 0) return `Took ${mins} min.`;
   const typed = Math.round((100 * stats.typed) / total);
-  return `Took ${mins} min. You typed ${typed}% yourself; Tab filled ${100 - typed}%.`;
+  const speed = wpm(stats.chars ?? 0, stats.activeMs ?? 0);
+  const corr = correctionRate({ keys: stats.keys ?? 0, chars: stats.chars ?? 0, corrections: stats.corrections ?? 0, activeMs: stats.activeMs ?? 0 });
+  const how = [
+    ...(speed !== undefined ? [`at ${Math.round(speed)} wpm`] : []),
+    ...(corr !== undefined ? [`${Math.round(corr * 100)}% corrections`] : []),
+  ].join(', ');
+  return `Took ${mins} min. You typed ${typed}% yourself${how ? ` ${how}` : ''}; Tab filled ${100 - typed}%.`;
 }

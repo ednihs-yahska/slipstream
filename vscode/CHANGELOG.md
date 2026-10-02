@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 (preview)
+
+**Typing speed and time left.**
+
+- **Speed from real keystrokes only:** one character, Enter with its auto-indent, or an auto-closed pair
+  counts as a key. Tab/Shift+Tab accepts, undo/redo, pastes, snippets, completions and Slipstream's own
+  edits never do. Backspace and Delete count as corrections, not speed.
+- **Active time** leaves out pauses longer than `slipstream.idleSeconds` (5), so reading and thinking
+  don't lower the number. Shown as words per minute: current (last minute), this session, and yours
+  overall.
+- **Time left** for the session and the whole project (a range replay includes its later commits):
+  characters still to type (indentation excluded), less the share you usually Tab-fill, at your speed.
+  Shown as a range that narrows as more of your typing is measured, or "about…" before there's any.
+- **Where:** the status bar (`3 changes left · 42 wpm · ~12 min left`), the Steps view (time left per
+  session; speed, accuracy and estimates in its tooltip; characters per step), the completion notice,
+  and **Slipstream: Show Practice Stats** (per practice folder and per project).
+- `slipstream.showTypingSpeed` hides it all.
+
 ## 0.2.0 (preview)
 
 **Portable practice repos.** A practice folder can be its own git repository: push it, clone it onto

@@ -17,6 +17,10 @@ export interface StoredStats {
   typed: number;
   accepted: number;
   startedAt: number;
+  keys?: number;
+  chars?: number;
+  corrections?: number;
+  activeMs?: number;
 }
 
 export interface StoredProgress {

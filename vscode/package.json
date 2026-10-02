@@ -2,7 +2,7 @@
   "name": "slipstream",
   "displayName": "Slipstream",
   "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "EdnihsYahska",
   "license": "MIT",
   "repository": {
@@ -50,6 +50,12 @@
         "title": "Choose Practice Mode\u2026",
         "category": "Slipstream",
         "icon": "$(eye)"
+      },
+      {
+        "command": "slipstream.showStats",
+        "title": "Show Practice Stats",
+        "category": "Slipstream",
+        "icon": "$(graph)"
       },
       {
         "command": "slipstream.startPractice",
@@ -339,6 +345,18 @@
           "default": 10,
           "minimum": 0,
           "markdownDescription": "How often to fetch remote targets (practice folders whose project is a git URL), in minutes. `0` fetches only when a session starts and on **Slipstream: Fetch Remote Targets**."
+        },
+        "slipstream.showTypingSpeed": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show typing speed and time left in the status bar and the Steps view. Speed counts real keystrokes only \u2014 never `Tab`/`Shift+Tab` accepts, undo/redo, pastes or completions."
+        },
+        "slipstream.idleSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 120,
+          "markdownDescription": "A pause longer than this many seconds isn't counted as typing time, so reading and thinking don't lower your speed."
         }
       }
     },
@@ -402,6 +420,11 @@
           "command": "slipstream.chooseMode",
           "when": "view == slipstream.steps",
           "group": "0_mode@1"
+        },
+        {
+          "command": "slipstream.showStats",
+          "when": "view == slipstream.steps",
+          "group": "navigation@0"
         },
         {
           "command": "slipstream.nextStep",

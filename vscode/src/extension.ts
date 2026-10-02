@@ -5,6 +5,7 @@ import { Decorations } from './ghost/Decorations';
 import { connectAgent, refreshMcpServer } from './agent/mcpCommand';
 import { setUpAgent, SetupArgs } from './agent/setupCommand';
 import { initLog } from './log';
+import { leftText, speedText, statsMarkdown } from './stats/report';
 import { noticeOtherProviders } from './ghost/coexistence';
 import { applyMine, DivergenceActions, openInTarget } from './ghost/Divergence';
 import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextProvider';
@@ -65,8 +66,13 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     const total = session ? session.pending.length + session.done.length : 0;
     const progress = session && total > 0 ? ` · ${session.done.length}/${total} steps` : '';
     const modeIcon = mode === 'hint' ? '$(lightbulb) ' : mode === 'delayed' ? '$(watch) ' : '';
+    const showSpeed = vscode.workspace.getConfiguration('slipstream').get<boolean>('showTypingSpeed', true);
+    const pace = showSpeed && session ? [speedText(session.pace), leftText(session.pace)].filter(Boolean).join(' · ') : '';
     status.text =
-      modeIcon + (hunks.length === 0 ? '$(check) File done' : `$(keyboard) ${hunks.length} change${hunks.length === 1 ? '' : 's'} left`) + progress;
+      modeIcon +
+      (hunks.length === 0 ? '$(check) File done' : `$(keyboard) ${hunks.length} change${hunks.length === 1 ? '' : 's'} left`) +
+      progress +
+      (pace ? ` · ${pace}` : '');
     status.tooltip = hunks.length === 0 ? 'Slipstream: click for the next step' : 'Slipstream: click to go to the next change';
     status.command = hunks.length === 0 ? 'slipstream.nextStep' : 'slipstream.nextChange';
     status.show();
@@ -111,6 +117,7 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     const h = hunks.find((h) => h.end > h.start && h.start <= cursor && cursor <= h.end);
     if (!h) return;
     const doc = editor.document;
+    sessions.expectInternal(doc.uri); // not a Backspace: don't count it as a correction
     await editor.edit((b) => b.delete(new vscode.Range(doc.positionAt(h.start), doc.positionAt(h.end))));
     await refresh();
   };
@@ -147,6 +154,13 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     vscode.workspace.registerTextDocumentContentProvider(GIT_SCHEME, new GitTargetProvider()),
     reveal,
     vscode.commands.registerCommand('slipstream.chooseMode', chooseMode),
+    vscode.commands.registerCommand('slipstream.showStats', async (opts?: { show?: boolean }) => {
+      const md = statsMarkdown(sessions.list());
+      if (opts?.show === false) return md;
+      const doc = await vscode.workspace.openTextDocument({ content: md, language: 'markdown' });
+      await vscode.commands.executeCommand('markdown.showPreview', doc.uri);
+      return md;
+    }),
     vscode.commands.registerCommand('slipstream.connectAgent', (opts?: { show?: boolean }) => connectAgent(context, opts)),
     vscode.commands.registerCommand('slipstream.setUpAgent', (args?: SetupArgs) => setUpAgent(sessions, args)),
     vscode.commands.registerCommand('slipstream.startPractice', () => startPractice(context, store)),
