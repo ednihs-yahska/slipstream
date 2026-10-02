@@ -20,6 +20,16 @@ The first published version, on the Marketplace's pre-release channel. It includ
   and **Slipstream: Show Practice Stats** (per practice folder and per project).
 - `slipstream.showTypingSpeed` hides it all.
 
+**Typing new lines above existing code, and typos.** Found by hand-testing the package:
+- VS Code draws a multi-line ghost as *virtual* lines that don't push the code after the cursor down.
+  Typing new lines in front of existing code therefore glued the first new line to it, and Enter then
+  split and re-indented it. When a ghost inserts whole lines before code on the cursor's line,
+  Slipstream now opens a blank line first, so you type on a line of your own (on arrival, on a jump,
+  and before Tab).
+- A wrong letter used to make the ghost vanish. Now the mistake is struck through, the ghost stays,
+  and Tab replaces the mistake with the right word; Backspace works as usual. In hint and delayed
+  modes, a hint says what's wrong.
+
 **Guidance where the ghost would be.** When there's nothing to type at the cursor, a hint says what to do
 next: the next change in this file (`◂ next change on line 42 · Alt+]`), or the next step, including
 the ones that aren't typing (create a file and its folder, move, delete, copy), or that everything is

@@ -788,4 +788,62 @@ describe('Slipstream', () => {
       assert.notStrictEqual(lf(editor.document.getText()), lf(before) + 'next');
     });
   });
+
+  describe('typing new lines above existing code', () => {
+    // The owner's report: new lines go in above existing code. Typing them (with real
+    // keystrokes, auto-indent included) must not glue to or indent the existing line.
+    it('types a new block above existing code without disturbing it', async () => {
+      const editor = await open(practice('src/greet.ts'), 'export function greet(name: string): string {\n  return `Hello, ${name}`;\n}\n');
+      placeCursor(editor, editor.document.getText().length);
+      await vscode.commands.executeCommand('slipstream.nextChange'); // wraps to the new interface at the top
+      // Typed at once, with no pause: the jump itself must have made room.
+      for (const ch of 'export interface GreetOptions {') await vscode.commands.executeCommand('type', { text: ch });
+      await vscode.commands.executeCommand('type', { text: '\n' }); // a real Enter: auto-indents
+      const lines = lf(editor.document.getText()).split('\n');
+      assert.strictEqual(lines[0], 'export interface GreetOptions {');
+      // The existing function stays whole and unindented, below the new lines.
+      assert.ok(lines.includes('export function greet(name: string): string {'), lines.join('\n'));
+      assert.ok(!lines.some((l) => /^\s+export function greet/.test(l)), lines.join('\n'));
+      assert.ok(!lines[0].includes('export function'), lines.join('\n'));
+    });
+
+    it('Tab word by word does the same', async () => {
+      const editor = await open(practice('src/greet.ts'), 'export function greet(name: string): string {\n  return `Hello, ${name}`;\n}\n');
+      placeCursor(editor, editor.document.getText().length);
+      await vscode.commands.executeCommand('slipstream.nextChange');
+      for (let i = 0; i < 5; i++) await vscode.commands.executeCommand('slipstream.acceptWord');
+      const lines = lf(editor.document.getText()).split('\n');
+      assert.ok(!lines[0].includes('export function'), lines.join('\n'));
+      assert.ok(lines.includes('export function greet(name: string): string {'), lines.join('\n'));
+    });
+  });
+
+  describe('typing a wrong letter', () => {
+    const ghostNow = async (editor: vscode.TextEditor) => {
+      const items = await api().ghost.provideInlineCompletionItems(editor.document, editor.selection.active);
+      return items?.[0]?.insertText as string | undefined;
+    };
+
+    it('keeps the ghost, and Tab replaces the mistake', async () => {
+      const editor = await open(practice('src/math.ts'), 'export ');
+      placeCursor(editor, editor.document.getText().length);
+      await vscode.commands.executeCommand('type', { text: 'x' }); // expected "f"
+      assert.ok((await ghostNow(editor))?.startsWith('function clamp'), 'the ghost is still offered');
+      await vscode.commands.executeCommand('slipstream.acceptWord');
+      assert.strictEqual(editor.document.lineAt(0).text, 'export function');
+    });
+
+    it('says what is wrong when the ghost is hidden (hint mode)', async () => {
+      const cfg = vscode.workspace.getConfiguration('slipstream');
+      await cfg.update('mode', 'hint', vscode.ConfigurationTarget.Global);
+      try {
+        const editor = await open(practice('src/math.ts'), 'export ');
+        placeCursor(editor, editor.document.getText().length);
+        await vscode.commands.executeCommand('type', { text: 'q' });
+        await eventually(async () => /"q" isn't what's next/.test(api().hint() ?? ''));
+      } finally {
+        await cfg.update('mode', undefined, vscode.ConfigurationTarget.Global);
+      }
+    });
+  });
 });

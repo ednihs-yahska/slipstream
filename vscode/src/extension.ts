@@ -10,6 +10,7 @@ import { initLog } from './log';
 import { leftText, speedText, statsMarkdown } from './stats/report';
 import { noticeOtherProviders } from './ghost/coexistence';
 import { applyMine, DivergenceActions, openInTarget } from './ghost/Divergence';
+import { needsRoom, Ghost } from './diff/tolerance';
 import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextProvider';
 import { guidanceText } from './ghost/guidance';
 import { hintFor } from './ghost/hint';
@@ -66,8 +67,16 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     const key = ghost && ghostKey(editor.document, ghost);
     reveal.at(key);
     const hidden = !!ghost && (mode === 'hint' || (mode === 'delayed' && !reveal.revealed(key!)));
+    // Whole new lines before code on this line: move that code down first, so the new
+    // lines are typed on a line of their own. The edit triggers another refresh.
+    if (ghost && (await makeRoom(editor, ghost))) return;
     const session0 = sessions.sessionFor(editor.document.uri.fsPath);
-    const hint = hidden ? (mode === 'hint' ? hintFor(ghost!.text) : '◂ …') : !ghost ? guidance(editor, hunks, session0) : undefined;
+    const mistake = ghost?.mistyped !== undefined ? `◂ "${ghost.mistyped}" isn't what's next · Backspace, or Tab to fix` : undefined;
+    const hint = hidden
+      ? (mistake ?? (mode === 'hint' ? hintFor(ghost!.text) : '◂ …'))
+      : !ghost
+        ? guidance(editor, hunks, session0)
+        : undefined;
     lastHint = hint;
     decorations.update(editor, hunks, ghost?.hunk, hint);
     const session = sessions.sessionFor(editor.document.uri.fsPath);
@@ -89,9 +98,29 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     if (hidden) await vscode.commands.executeCommand('editor.action.inlineSuggest.hide');
   };
 
+  /** Insert a line break after the cursor, keeping the cursor where it is. Slipstream's edit, not typing. */
+  let makingRoom = false;
+  const makeRoom = async (editor: vscode.TextEditor, ghost: Ghost): Promise<boolean> => {
+    if (makingRoom || !editor.selection.isEmpty) return false;
+    const doc = editor.document;
+    const pos = editor.selection.active;
+    if (!needsRoom(doc.getText(), ghost, doc.offsetAt(pos))) return false;
+    makingRoom = true;
+    try {
+      sessions.expectInternal(doc.uri);
+      const ok = await editor.edit((b) => b.insert(pos, doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
+      if (ok) editor.selection = new vscode.Selection(pos, pos);
+      return ok;
+    } finally {
+      makingRoom = false;
+    }
+  };
+
   const accept = (pick: (ghost: string, textAfterCursor: string) => string, fallback: string) => async () => {
     const editor = vscode.window.activeTextEditor;
-    const ghost = editor ? await ghostAtCursor(store, editor) : undefined;
+    let ghost = editor ? await ghostAtCursor(store, editor) : undefined;
+    // Tab before the refresh has made room: make it now.
+    if (editor && ghost && (await makeRoom(editor, ghost))) ghost = await ghostAtCursor(store, editor);
     if (!editor || !ghost) {
       await vscode.commands.executeCommand(fallback);
       return;
@@ -113,6 +142,10 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     const pos = editor.document.positionAt(target.start);
     editor.selection = new vscode.Selection(pos, pos);
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    // Make room now rather than in the refresh the cursor move triggers: someone
+    // typing straight after the jump must already be on a line of their own.
+    const ghost = await ghostAtCursor(store, editor);
+    if (ghost) await makeRoom(editor, ghost);
     await refresh();
   };
 

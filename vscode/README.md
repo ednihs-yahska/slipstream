@@ -196,7 +196,10 @@ count. Files in the practice folder that the project ignores (e.g. `dist/`) aren
 - **Ghost text** at the cursor: the code still to type here.
 - **`▸` markers**: other places with code to type (hover to preview it).
 - **Strikethrough**: code the target no longer has. Delete it yourself, or bind
-  `slipstream.deleteMarked` to a key.
+  `slipstream.deleteMarked` to a key. A typo is struck through too, and the ghost stays after it:
+  Backspace, or Tab to replace it with the right word.
+- **New lines above existing code**: Slipstream opens a blank line for them first, so what you type
+  never glues to the code below.
 - **Status bar**: changes left; click to jump to the next one.
 - **A hint where the ghost would be**, when there's nothing to type at the cursor:
   `◂ next change on line 42 · Alt+]`, or the next step, e.g.
