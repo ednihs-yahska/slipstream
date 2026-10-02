@@ -357,6 +357,11 @@
           "minimum": 1,
           "maximum": 120,
           "markdownDescription": "A pause longer than this many seconds isn't counted as typing time, so reading and thinking don't lower your speed."
+        },
+        "slipstream.guidanceHints": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When there's nothing to type at the cursor, show what to do next in the ghost text's place: the next change in this file, or the next step (create a file and its folder, move, delete, copy). Only at the end of a line, and never insertable."
         }
       }
     },

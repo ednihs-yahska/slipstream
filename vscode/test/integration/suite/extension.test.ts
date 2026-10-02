@@ -747,4 +747,45 @@ describe('Slipstream', () => {
       assert.ok(md.includes('characters left'), md);
     });
   });
+
+  describe('guidance hints', () => {
+    const proj = () => path.join(project(), 'guidedemo');
+    const prac = (...p: string[]) => path.join(proj(), '.slipstream/practice', ...p);
+    const session = () => api().sessions.list().find((x) => x.link.practiceRoot === prac());
+
+    before(async () => {
+      fs.mkdirSync(path.join(proj(), 'lib'), { recursive: true });
+      fs.writeFileSync(path.join(proj(), 'a.ts'), 'one();\ntwo();\n');
+      fs.writeFileSync(path.join(proj(), 'lib/util.ts'), 'export const u = 1;\n');
+      fs.mkdirSync(prac('.slipstream'), { recursive: true });
+      fs.writeFileSync(prac('.slipstream/link.json'), JSON.stringify({ target: '../..' }));
+      fs.writeFileSync(prac('a.ts'), 'one();\n');
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return session()?.pending.length === 2;
+      });
+    });
+
+    it('points at the next change when the cursor has nothing to type', async () => {
+      const editor = await open(prac('a.ts'));
+      placeCursor(editor, at(editor, 0, 6)); // end of "one();": the missing line is below
+      await eventually(async () => /next change on line 2/.test(api().hint() ?? ''));
+    });
+
+    it('when the file is done, says to create the next file and its folder', async () => {
+      const editor = await open(prac('a.ts'), 'one();\ntwo();\n');
+      await editor.document.save();
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return session()?.pending.length === 1;
+      });
+      placeCursor(editor, at(editor, 1, 6));
+      await eventually(async () => /next: create lib\/util\.ts \(and its folder lib\/\)/.test(api().hint() ?? ''));
+      // Only a hint: Tab doesn't type it.
+      const before = editor.document.getText();
+      await vscode.commands.executeCommand('slipstream.acceptWord');
+      assert.ok(!editor.document.getText().includes('next:'), editor.document.getText());
+      assert.notStrictEqual(lf(editor.document.getText()), lf(before) + 'next');
+    });
+  });
 });
