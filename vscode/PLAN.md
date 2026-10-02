@@ -277,6 +277,50 @@ As built:
 - Workspace Trust: `untrustedWorkspaces.supported: false` with a description; `virtualWorkspaces: false`.
 - Tests: 12 unit tests against a local bare remote; 4 integration tests (clone and practise against a remote, follow a pushed commit, switch to and from a local checkout, clone a practice repo).
 
+**M7 — Typing speed and time estimates** *(planned: version 0.3.0)*
+
+Goal: show how fast the developer actually types, counting only real keystrokes (never `Tab` / `Shift+Tab` accepts), and estimate how long the current session and the whole project will take at that speed.
+
+*What counts as typing.* A document change in a practice file counts as typed keystrokes only if all of these hold:
+- it isn't a Slipstream edit: a Tab/Shift+Tab accept (already told apart via `expectAccepted`), Delete Marked, Copy from Project, a move, or a fresh practice file being created;
+- its `reason` isn't `Undo` or `Redo` (`TextDocumentChangeEvent.reason`, stable API);
+- it's keystroke-sized: one character, or what one key produces. That means Enter plus the editor's auto-indent (a newline followed only by whitespace), or an auto-closed pair such as `()` or `""` (one key). Anything larger is a paste, a snippet, an IntelliSense completion or a format-on-type, and is ignored for speed (it still counts as "typed" in the existing typed-vs-Tab share, which is about who produced the code).
+- Backspace and delete are keys too. They're counted as **corrections**, kept separately, and don't add to speed.
+
+*Speed.*
+- **Active time:** the gaps between counted keystrokes, with any gap over `slipstream.idleSeconds` (default 5) cut off, so reading, thinking and coffee don't drag the number down.
+- **WPM** = (characters typed / 5) / active minutes, the standard five-characters-per-word convention. Also shown: **current** (rolling, over the last 60 s of active time), **session average**, and **your average** (per user, across all sessions and projects, in global state).
+- **Accuracy hint:** corrections as a share of keystrokes.
+
+*Time estimates.*
+- **Characters left per step:** a new `charsLeft` on steps. For create, it's the target text; for modify and rename, the inserted text of the remaining (whitespace-filtered) hunks. In both, leading indentation is excluded, since the editor types it. Delete and copy count as zero characters plus a small fixed action cost.
+- **This session:** charsLeft × (1 − your Tab share) ÷ your speed, plus Tab-filled characters at a nominal fast rate. Your Tab share comes from this session once it has enough data, otherwise your overall share. Your speed is the session average once it has about 200 characters, otherwise your overall average, otherwise a stated default of 40 WPM, marked as a guess.
+- **Whole project:**
+  - live practice: the session *is* the project, so whole project = this session plus the time already spent;
+  - range replay: this commit plus every later commit in the range, with characters from `git diff <c>^ <c>` (added lines, indentation excluded; cheap, and computed once per commit and cached), plus Continue to Current Files if there's more;
+  - all practice folders for the project: the sum over sessions.
+
+  Always shown as **spent so far + estimated left = total**.
+- Estimates show as ranges once there's data, e.g. `~25–35 min` from the spread of your recent speed, and as "about" before that.
+
+*Where it shows.*
+- **Status bar** (the existing item): `$(keyboard) 3 changes left · 42 wpm · ~12 min left`. The WPM is the current one, so you see it move as you type.
+- **Steps view:** session descriptions gain `· ~12 min left`. The session tooltip has the full breakdown: current, session and personal WPM, accuracy, active versus wall time, and session and project estimates.
+- **Completion notice:** adds "at 38 wpm, 6 % corrections". Replays add "~1 h 20 m left in this replay".
+- **New command, Show Practice Stats:** the same breakdown, per session and for the project, in a Markdown preview.
+- **Setting:** `slipstream.showTypingSpeed` (on), to hide the numbers for anyone who'd rather not see them.
+
+*Storage.* Session stats grow keystrokes, corrections, characters and active milliseconds, and go wherever progress goes (workspace state, or `progress.json`). The personal profile lives in global state, which is per user and never committed.
+
+*Tests.*
+- A pure `speed.ts`: change classification, active-time accumulation with the idle cutoff, WPM, and the estimate. Unit-tested with synthetic change events and an injected clock: keystrokes, Enter with auto-indent, an auto-closed pair, a paste, a completion, undo and redo, a Tab accept, and a long pause.
+- Integration: typed edits count, `acceptWord` / `acceptLine` don't, and the status bar text is built from the stats.
+
+*Open questions:*
+- WPM, or characters per minute for code (code has short "words" and lots of symbols)? The plan shows WPM with CPM in the tooltip.
+- Should Backspace count towards speed (gross) or only towards accuracy (net)? The plan says net.
+- What is "the whole project"? The plan covers a replay range and all practice folders for a project. Typing an entire repository from scratch (an empty practice folder) is the same calculation over every file.
+
 ---
 
 ## 9. Decisions
