@@ -1,4 +1,4 @@
-# Slipstream
+# Slipstream Practice
 
 **Draft behind your AI agent.** The agent writes the code in your project as usual; you retype its
 changes yourself in a **practice folder**, with what's left to type shown as ghost text. You end up with
