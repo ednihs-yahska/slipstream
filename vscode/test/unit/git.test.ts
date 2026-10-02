@@ -35,7 +35,8 @@ describe('gitArchive', () => {
     const dest = path.join(repo, '.slipstream/practice');
     fs.mkdirSync(dest, { recursive: true });
     await gitArchive(path.join(repo, 'pkg'), 'HEAD:pkg/', dest);
-    expect(fs.readFileSync(path.join(dest, 'src/a.ts'), 'utf8')).toBe('committed\n');
+    // Git on Windows may convert line endings (core.autocrlf); Slipstream normalizes them anyway.
+    expect(fs.readFileSync(path.join(dest, 'src/a.ts'), 'utf8').replace(/\r\n/g, '\n')).toBe('committed\n');
     expect(fs.existsSync(path.join(dest, 'root.txt'))).toBe(false);
   });
   it('rejects a bad revision', async () => {

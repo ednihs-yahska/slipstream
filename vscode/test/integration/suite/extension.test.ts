@@ -412,19 +412,25 @@ describe('Slipstream', () => {
 
     it('opens the commit\'s version read-only, and offers no "use my version"', async () => {
       const editor = await open(prac('a.ts'), 'a1\nX\n');
-      const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
-        'vscode.executeCodeActionProvider',
-        editor.document.uri,
-        new vscode.Range(1, 0, 1, 0),
-      );
-      assert.deepStrictEqual(actions.map((a) => a.title), ["Slipstream: Show the commit's version"]);
-      await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, 3);
-      const shown = vscode.window.activeTextEditor!;
-      assert.strictEqual(shown.document.uri.scheme, 'slipstream-git');
-      assert.strictEqual(shown.document.getText(), 'a1\na2\n');
-      await vscode.window.showTextDocument(editor.document);
-      await editor.edit((b) => b.replace(new vscode.Range(0, 0, editor.document.lineCount, 0), 'a1\na2\n'));
-      await editor.document.save();
+      try {
+        const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider',
+          editor.document.uri,
+          new vscode.Range(1, 0, 1, 0),
+        );
+        // Only ours: VS Code itself may add AI actions ("Fix", "Explain") on some platforms.
+        const ours = actions.map((a) => a.title).filter((t) => t.startsWith('Slipstream:'));
+        assert.deepStrictEqual(ours, ["Slipstream: Show the commit's version"]);
+        await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, 3);
+        const shown = vscode.window.activeTextEditor!;
+        assert.strictEqual(shown.document.uri.scheme, 'slipstream-git');
+        assert.strictEqual(shown.document.getText(), 'a1\na2\n');
+      } finally {
+        // Later tests need this commit's step done, so restore it even on failure.
+        await vscode.window.showTextDocument(editor.document);
+        await editor.edit((b) => b.replace(new vscode.Range(0, 0, editor.document.lineCount, 0), 'a1\na2\n'));
+        await editor.document.save();
+      }
     });
 
     it('when a commit is done, "next commit" moves on to the next one', async () => {

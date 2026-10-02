@@ -48,7 +48,7 @@ export async function gitArchive(repoDir: string, treeish: string, dest: string)
 export async function excludeFromGit(targetRoot: string, practiceRoot: string): Promise<boolean> {
   try {
     const { stdout: top } = await run('git', ['-C', targetRoot, 'rev-parse', '--show-toplevel']);
-    const repoRoot = fs.realpathSync(top.trim());
+    const repoRoot = canonical(top.trim());
     const practice = realpathLoose(practiceRoot);
     if (!isInside(practice, repoRoot)) return false;
     const { stdout: excludePath } = await run('git', ['-C', repoRoot, 'rev-parse', '--git-path', 'info/exclude']);
@@ -71,10 +71,19 @@ export async function excludeFromGit(targetRoot: string, practiceRoot: string): 
   }
 }
 
+/**
+ * The OS's canonical path. On Windows the JS `realpathSync` keeps 8.3 short names
+ * (`C:\Users\RUNNER~1\…`) while git reports long ones, so paths that are the same
+ * folder compared as different; `.native` asks the OS and returns the long form.
+ */
+function canonical(p: string): string {
+  return fs.realpathSync.native(p);
+}
+
 /** realpath of `p`, or of its nearest existing ancestor joined with the rest (for paths not created yet). */
 function realpathLoose(p: string): string {
   const abs = path.resolve(p);
-  if (fs.existsSync(abs)) return fs.realpathSync(abs);
+  if (fs.existsSync(abs)) return canonical(abs);
   const parent = path.dirname(abs);
   return parent === abs ? abs : path.join(realpathLoose(parent), path.basename(abs));
 }
@@ -169,11 +178,11 @@ export async function excludeFiles(dir: string, rels: string[]): Promise<string[
   const added: string[] = [];
   try {
     const { stdout: top } = await run('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-    const repoRoot = fs.realpathSync(top.trim());
+    const repoRoot = canonical(top.trim());
     const { stdout: excludePath } = await run('git', ['-C', repoRoot, 'rev-parse', '--git-path', 'info/exclude']);
     const file = path.resolve(repoRoot, excludePath.trim());
     for (const rel of rels) {
-      const abs = path.join(fs.realpathSync(dir), rel);
+      const abs = path.join(canonical(dir), rel);
       const fromRoot = path.relative(repoRoot, abs).split(path.sep).join('/');
       try {
         await run('git', ['-C', repoRoot, 'check-ignore', '-q', '--no-index', fromRoot]);
