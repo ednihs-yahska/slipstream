@@ -30,6 +30,12 @@ async function open(file: string, content?: string): Promise<vscode.TextEditor> 
   return editor;
 }
 
+/** Text with line endings normalized: on Windows, new documents and git checkouts use CRLF. */
+const lf = (text: string) => text.replace(/\r\n/g, '\n');
+/** A document offset from line/column, so tests don't assume one-byte line endings. */
+const at = (editor: vscode.TextEditor, line: number, character: number) =>
+  editor.document.offsetAt(new vscode.Position(line, character));
+
 function placeCursor(editor: vscode.TextEditor, offset: number) {
   const pos = editor.document.positionAt(offset);
   editor.selection = new vscode.Selection(pos, pos);
@@ -224,27 +230,27 @@ describe('Slipstream', () => {
       const projectFile = path.join(project(), 'src/apply.ts');
       fs.writeFileSync(projectFile, 'const sum = 1;\nlog(sum);\n');
       const editor = await open(practice('src/apply.ts'), 'const total = 1;\n');
-      await vscode.commands.executeCommand('slipstream.applyMine', editor.document.uri, 7);
+      await vscode.commands.executeCommand('slipstream.applyMine', editor.document.uri, at(editor, 0, 7));
 
-      assert.strictEqual(fs.readFileSync(projectFile, 'utf8'), 'const total = 1;\nlog(sum);\n');
+      assert.strictEqual(lf(fs.readFileSync(projectFile, 'utf8')), 'const total = 1;\nlog(sum);\n');
       // Only the line I haven't written yet is left.
       const left = await changes(editor);
-      assert.deepStrictEqual(left.map((h) => h.insert), ['log(sum);\n']);
+      assert.deepStrictEqual(left.map((h) => lf(h.insert)), ['log(sum);\n']);
     });
 
     it('"remove from project" drops a line I won\'t write', async () => {
       const projectFile = path.join(project(), 'src/apply.ts');
       fs.writeFileSync(projectFile, 'a();\nb();\nc();\n');
       const editor = await open(practice('src/apply.ts'), 'a();\nc();\n');
-      await vscode.commands.executeCommand('slipstream.applyMine', editor.document.uri, 5);
-      assert.strictEqual(fs.readFileSync(projectFile, 'utf8'), 'a();\nc();\n');
+      await vscode.commands.executeCommand('slipstream.applyMine', editor.document.uri, at(editor, 1, 0));
+      assert.strictEqual(lf(fs.readFileSync(projectFile, 'utf8')), 'a();\nc();\n');
       assert.deepStrictEqual(await changes(editor), []);
     });
 
     it('"open in project" shows the project file at the difference', async () => {
       fs.writeFileSync(path.join(project(), 'src/apply.ts'), 'one();\nconst sum = 1;\n');
       const editor = await open(practice('src/apply.ts'), 'one();\nconst total = 1;\n');
-      await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, 13);
+      await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, at(editor, 1, 6));
       const shown = vscode.window.activeTextEditor!;
       assert.strictEqual(shown.document.uri.fsPath, path.join(project(), 'src/apply.ts'));
       assert.strictEqual(shown.document.getText(shown.selection), 'sum');
@@ -386,7 +392,7 @@ describe('Slipstream', () => {
     });
 
     it('starts from the parent and lists what the commit changed', async () => {
-      assert.strictEqual(fs.readFileSync(prac('a.ts'), 'utf8'), 'a1\n');
+      assert.strictEqual(lf(fs.readFileSync(prac('a.ts'), 'utf8')), 'a1\n');
       assert.deepStrictEqual(pending(), ['modify a.ts', 'create b.ts']);
       assert.strictEqual(session()!.subject, 'add a2 and b');
     });
@@ -395,7 +401,7 @@ describe('Slipstream', () => {
       const editor = await open(prac('a.ts'));
       placeCursor(editor, editor.document.getText().length);
       await vscode.commands.executeCommand('slipstream.acceptLine');
-      assert.strictEqual(editor.document.getText(), 'a1\na2');
+      assert.strictEqual(lf(editor.document.getText()), 'a1\na2');
       await editor.document.save();
     });
 
@@ -421,10 +427,10 @@ describe('Slipstream', () => {
         // Only ours: VS Code itself may add AI actions ("Fix", "Explain") on some platforms.
         const ours = actions.map((a) => a.title).filter((t) => t.startsWith('Slipstream:'));
         assert.deepStrictEqual(ours, ["Slipstream: Show the commit's version"]);
-        await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, 3);
+        await vscode.commands.executeCommand('slipstream.openInTarget', editor.document.uri, at(editor, 1, 0));
         const shown = vscode.window.activeTextEditor!;
         assert.strictEqual(shown.document.uri.scheme, 'slipstream-git');
-        assert.strictEqual(shown.document.getText(), 'a1\na2\n');
+        assert.strictEqual(lf(shown.document.getText()), 'a1\na2\n');
       } finally {
         // Later tests need this commit's step done, so restore it even on failure.
         await vscode.window.showTextDocument(editor.document);
@@ -437,7 +443,7 @@ describe('Slipstream', () => {
       const s = session()!;
       const node = { type: 'step' as const, session: s, step: s.pending.find((x) => x.path === 'b.ts')!, done: false };
       await vscode.commands.executeCommand('slipstream.steps.copyFromProject', node);
-      assert.strictEqual(fs.readFileSync(prac('b.ts'), 'utf8'), 'b\n');
+      assert.strictEqual(lf(fs.readFileSync(prac('b.ts'), 'utf8')), 'b\n');
       await eventually(async () => {
         await api().sessions.refresh();
         return pending().length === 0;
