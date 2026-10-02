@@ -29,6 +29,10 @@ export async function gitArchive(repoDir: string, treeish: string, dest: string)
     let err = '';
     archive.stderr.on('data', (d) => (err += d));
     tar.stderr.on('data', (d) => (err += d));
+    // A broken pipe shows up in the exit codes below; unhandled, it would throw.
+    tar.stdin.on('error', () => undefined);
+    archive.on('error', reject);
+    tar.on('error', reject);
     archive.stdout.pipe(tar.stdin);
     archive.on('close', (code) => code !== 0 && reject(new Error(err.trim() || `git archive exited ${code}`)));
     tar.on('close', (code) => (code === 0 ? resolve() : reject(new Error(err.trim() || `tar exited ${code}`))));

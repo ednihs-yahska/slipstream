@@ -73,7 +73,10 @@ function gitIgnored(repoDir: string, rels: string[]): Promise<Set<string>> {
     let out = '';
     p.stdout.on('data', (d) => (out += d));
     p.on('error', () => resolve(new Set()));
-    // Exit 1 just means "nothing ignored"; 128 means not a repo.
+    // Exit 1 just means "nothing ignored"; 128 means not a repo. Outside a repo git exits
+    // without reading stdin, so writing the list can hit a closed pipe (EPIPE): that is
+    // the same answer, not an error, and unhandled it would crash the extension host.
+    p.stdin.on('error', () => undefined);
     p.on('close', () => resolve(new Set(out.split('\0').filter(Boolean))));
     p.stdin.end(rels.join('\0') + '\0');
   });
