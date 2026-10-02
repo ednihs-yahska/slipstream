@@ -12,6 +12,14 @@ async function main() {
   await runTests({
     extensionDevelopmentPath: root,
     extensionTestsPath: path.join(__dirname, 'suite', 'index'),
+    // A private remote-target cache, and a git identity for the commits tests make.
+    extensionTestsEnv: {
+      SLIPSTREAM_CACHE_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'tc-cache-')),
+      GIT_AUTHOR_NAME: 'Slipstream Tests',
+      GIT_AUTHOR_EMAIL: 'tests@slipstream.invalid',
+      GIT_COMMITTER_NAME: 'Slipstream Tests',
+      GIT_COMMITTER_EMAIL: 'tests@slipstream.invalid',
+    },
     // Short user-data path: macOS caps IPC socket paths at 103 chars.
     launchArgs: [workspace, '--disable-extensions', `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'tc-ud-'))}`],
   });

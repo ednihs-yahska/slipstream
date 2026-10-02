@@ -28,8 +28,8 @@ No agent? **Replay any repository's git history** and retype it commit by commit
 
 In every mode, `Tab` / `Shift+Tab` still fill in a word / line: a peek when you're stuck.
 
-**Requirements:** VS Code 1.100 or later. Git, for starting from a commit, replays, and `.gitignore`
-support. Works with any coding agent; extra setup is available for Claude Code.
+**Requirements:** VS Code 1.100 or later, in a trusted workspace. Git, for starting from a commit,
+replays, remote targets, and `.gitignore` support. Works with any coding agent; extra setup is available for Claude Code.
 
 ## Use it on your own project
 
@@ -108,6 +108,24 @@ The target is read straight from git, so your checkout (and any uncommitted work
 Project files open read-only. When you finish, you get a summary: time taken, and how much you typed
 yourself versus filled in with Tab.
 
+## Take your practice anywhere
+
+A practice folder can be its own git repository. Start Practice offers to create one; push it like any
+other repository. Clone it onto another machine with **Slipstream: Clone a Practice Repository…**, and
+it finds its project:
+
+1. **A local checkout you point it at**: **Use a Local Checkout of the Project…** writes
+   `.slipstream/link.local.json`, which stays on this machine and out of git.
+2. **The path it was created with**, if that folder exists here and is a checkout of the project.
+3. **The project's git remote**: Start Practice records `origin`, and Slipstream fetches it into a cache
+   (`~/.cache/slipstream/remotes`, or `%LOCALAPPDATA%\slipstream\remotes` on Windows). It follows the
+   branch, fetching when a session starts, every `slipstream.remoteFetchMinutes` minutes, and on
+   **Fetch Remote Targets**.
+
+Progress (done steps, typed versus Tab) normally stays on each machine. **Store Progress in the Practice
+Folder** keeps it in `.slipstream/progress.json` instead, so it travels with the repository. If two
+machines practise at once, the last write wins.
+
 ## How the practice folder finds its target
 
 A practice folder contains `.slipstream/link.json`:
@@ -117,7 +135,9 @@ A practice folder contains `.slipstream/link.json`:
 ```
 
 `target` is the project, either absolute or relative to the practice folder (`~` works). Replays add
-`"ref"` (the commit being typed) and `"replay": { "commits": [...], "index": 0 }`. A practice file at
+`"ref"` (the commit being typed) and `"replay": { "commits": [...], "index": 0 }`. A practice folder
+can also carry `"remote": { "url": "…", "ref": "main", "path": "app" }`: the project's git URL, the
+branch to follow, and the project's folder inside the repository (see above). A practice file at
 `src/a.ts` is typed towards `<target>/src/a.ts`. Because the link sits in the practice folder, it works
 inside the project, elsewhere on disk, or with the practice folder open in its own window. **Link an
 Existing Folder as Practice Folder…** writes this file for any two folders.
@@ -185,6 +205,7 @@ put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
 | `slipstream.mode` | `ghost` | `ghost`, `delayed` or `hint` (see Practice modes) |
 | `slipstream.revealDelaySeconds` | `3` | in `delayed` mode, how long you're stuck before the code appears |
 | `slipstream.stepOrder` | `dependencies` | without a plan: `dependencies` (imported files first) or `path` |
+| `slipstream.remoteFetchMinutes` | `10` | how often to fetch remote targets; `0` only at session start and on demand |
 
 Errors and (at debug level) scan timings go to the **Slipstream** output channel.
 
@@ -198,6 +219,10 @@ Errors and (at debug level) scan timings go to the **Slipstream** output channel
 | Slipstream: Connect Your Agent (MCP)… | read-only tools for your agent to see your progress |
 | Slipstream: Choose Practice Mode… | ghost, delayed, or hint |
 | Slipstream: Open Practice Folder… | open a known practice folder in a new window |
+| Slipstream: Clone a Practice Repository… | clone a practice repo and resolve its project |
+| Slipstream: Use a Local Checkout of the Project… / Stop Using the Local Checkout | where the project is on this machine |
+| Slipstream: Fetch Remote Targets | update practice folders whose project is a git remote |
+| Slipstream: Store Progress in the Practice Folder | keep progress in `.slipstream/progress.json` |
 | Slipstream: Replay a Commit… / Replay a Range of Commits… | retype history |
 | Slipstream: Next Commit | move a range replay on to its next commit |
 | Slipstream: Continue to Current Files | after a replay's last commit, type on towards the project as it is now |

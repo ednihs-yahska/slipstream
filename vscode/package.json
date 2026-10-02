@@ -2,7 +2,7 @@
   "name": "slipstream",
   "displayName": "Slipstream",
   "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "EdnihsYahska",
   "license": "MIT",
   "repository": {
@@ -76,6 +76,34 @@
       {
         "command": "slipstream.openPracticeFolder",
         "title": "Open Practice Folder\u2026",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.clonePracticeRepo",
+        "title": "Clone a Practice Repository\u2026",
+        "category": "Slipstream",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "slipstream.pickLocalCheckout",
+        "title": "Use a Local Checkout of the Project\u2026",
+        "category": "Slipstream",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "slipstream.clearLocalCheckout",
+        "title": "Stop Using the Local Checkout",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.fetchRemotes",
+        "title": "Fetch Remote Targets",
+        "category": "Slipstream",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "slipstream.storeProgress",
+        "title": "Store Progress in the Practice Folder",
         "category": "Slipstream"
       },
       {
@@ -305,6 +333,12 @@
             "Alphabetical by path."
           ],
           "description": "How steps are ordered when the agent hasn't left a plan."
+        },
+        "slipstream.remoteFetchMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "markdownDescription": "How often to fetch remote targets (practice folders whose project is a git URL), in minutes. `0` fetches only when a session starts and on **Slipstream: Fetch Remote Targets**."
         }
       }
     },
@@ -385,6 +419,11 @@
           "group": "1_practice@1"
         },
         {
+          "command": "slipstream.clonePracticeRepo",
+          "when": "view == slipstream.steps",
+          "group": "1_practice@5"
+        },
+        {
           "command": "slipstream.linkPracticeFolder",
           "when": "view == slipstream.steps",
           "group": "1_practice@2"
@@ -408,6 +447,11 @@
           "command": "slipstream.connectAgent",
           "when": "view == slipstream.steps",
           "group": "1_practice@4"
+        },
+        {
+          "command": "slipstream.fetchRemotes",
+          "when": "view == slipstream.steps",
+          "group": "3_remote@1"
         }
       ],
       "view/item/context": [
@@ -480,6 +524,26 @@
           "command": "slipstream.replayContinue",
           "when": "view == slipstream.steps && viewItem =~ /^session-replay/",
           "group": "0_replay@2"
+        },
+        {
+          "command": "slipstream.fetchRemotes",
+          "when": "view == slipstream.steps && viewItem == session-remote",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.pickLocalCheckout",
+          "when": "view == slipstream.steps && viewItem =~ /^session/",
+          "group": "2_portable@1"
+        },
+        {
+          "command": "slipstream.clearLocalCheckout",
+          "when": "view == slipstream.steps && viewItem =~ /^session/",
+          "group": "2_portable@2"
+        },
+        {
+          "command": "slipstream.storeProgress",
+          "when": "view == slipstream.steps && viewItem =~ /^session/",
+          "group": "2_portable@3"
         }
       ]
     }
@@ -509,5 +573,12 @@
     "mocha": "^11.0.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Slipstream runs git in your workspace (listing, reading history, fetching remote targets) and writes to practice folders, so it needs a trusted workspace."
+    },
+    "virtualWorkspaces": false
   }
 }

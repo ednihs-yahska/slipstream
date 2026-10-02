@@ -46,20 +46,31 @@ export class StepsView implements vscode.TreeDataProvider<Node> {
       const total = pending.length + done.length;
       const progress = scanned ? (total === 0 ? 'matches' : `${done.length}/${total} done`) : 'scanning…';
       const replay = link.replay;
-      const label = link.ref
+      const remoteName = link.remote ? link.remote.url.replace(/\.git\/?$/, '').split(/[/:]/).slice(-2).join('/') : undefined;
+      const label = link.pinned && link.ref
         ? `${replay ? `Commit ${replay.index + 1}/${replay.commits.length}` : 'Commit'} ${link.ref.slice(0, 7)}${subject ? `: ${subject}` : ''}`
         : (plan?.title ?? path.basename(link.practiceRoot));
       const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
-      item.description = link.ref ? progress : `→ ${path.basename(link.targetRoot)} · ${progress}`;
+      const where =
+        link.source === 'remote' && !link.pinned
+          ? `→ ${remoteName}@${link.refLabel}${link.ref && link.ref !== link.refLabel ? ` (${link.ref.slice(0, 7)})` : ''}`
+          : link.pinned
+            ? undefined
+            : `→ ${path.basename(link.targetRoot)}`;
+      item.description = where ? `${where} · ${progress}` : progress;
       item.tooltip = [
         `Practice: ${link.practiceRoot}`,
-        `Target:   ${link.targetRoot}${link.ref ? ` @ ${link.ref.slice(0, 10)}` : ''}`,
+        link.source === 'remote'
+          ? `Target:   ${link.remote!.url}${link.remote!.path ? ` (${link.remote!.path}/)` : ''} @ ${link.refLabel}${link.ref ? ` = ${link.ref.slice(0, 10)}` : ''} — remote, cached`
+          : `Target:   ${link.targetRoot}${link.ref ? ` @ ${link.ref.slice(0, 10)}` : ''}${link.source === 'override' ? ' — this machine (link.local.json)' : ''}`,
         ...(subject ? [`Commit:   ${subject}`] : []),
         ...(plan ? [`Plan:     ${plan.title ?? '(untitled)'}, ${plan.entries.length} file${plan.entries.length === 1 ? '' : 's'}, from .slipstream/plan.md`] : []),
         ...(node.session.stats.typed + node.session.stats.accepted > 0 ? ['', summarize(node.session.stats)] : []),
       ].join('\n');
-      item.iconPath = new vscode.ThemeIcon(scanned && pending.length === 0 ? 'pass' : link.ref ? 'git-commit' : 'mortar-board');
-      item.contextValue = !link.ref ? 'session' : replay && replay.index + 1 < replay.commits.length ? 'session-replay' : 'session-replay-end';
+      item.iconPath = new vscode.ThemeIcon(scanned && pending.length === 0 ? 'pass' : link.pinned ? 'git-commit' : link.source === 'remote' ? 'cloud' : 'mortar-board');
+      item.contextValue = !link.pinned
+        ? link.remote ? 'session-remote' : 'session'
+        : replay && replay.index + 1 < replay.commits.length ? 'session-replay' : 'session-replay-end';
       item.id = `session:${link.practiceRoot}`;
       return item;
     }

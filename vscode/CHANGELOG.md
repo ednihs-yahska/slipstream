@@ -1,9 +1,27 @@
 # Changelog
 
-## 0.2.0 (planned)
+## 0.2.0 (preview)
 
-- **Portable practice repos:** practice folders as their own git projects that can be cloned anywhere,
-  with remote git targets, per-machine overrides and optional progress in the repo. See PLAN.md, M6.
+**Portable practice repos.** A practice folder can be its own git repository: push it, clone it onto
+another machine, and it still finds its project.
+
+- **Remote targets:** a practice folder's project can be a git URL (`"remote": { "url", "ref", "path" }`
+  in `.slipstream/link.json`). Slipstream keeps a bare clone in a per-user cache, follows the branch
+  (fetched when a session starts, every `slipstream.remoteFetchMinutes`, and on **Fetch Remote
+  Targets**), or reads a pinned commit. Projects in a subfolder of their repository work too.
+- **Where the project is, per machine:** `.slipstream/link.local.json` (never committed) wins, then the
+  committed path if it's a checkout of the remote, then the remote. **Use a Local Checkout of the
+  Project…** writes the override; **Stop Using the Local Checkout** removes it.
+- **Clone a Practice Repository…** clones one and resolves its project.
+- **Start Practice** records the project's `origin` in the link, and offers to make the practice folder
+  its own git repository (with a `.gitignore` for the per-machine file and a first commit).
+- **Progress in the practice folder (opt-in):** **Store Progress in the Practice Folder** keeps done
+  steps and statistics in `.slipstream/progress.json`, so they travel with the repository.
+- Replays and Continue to Current Files rewrite links in place, so a remote or a relative target
+  survives them.
+- **Workspace Trust:** declared as not supported in untrusted workspaces (Slipstream runs git there);
+  previously undeclared, with the same effect.
+- The Marketplace icon is the Slipstream logo.
 
 ## 0.1.0 (preview)
 

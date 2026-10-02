@@ -1,11 +1,14 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { log } from '../log';
-import { changedSince, subjectOf } from '../practice/git';
+import { subjectOf } from '../practice/git';
+import { moreAfter } from '../practice/replay';
 import { KNOWN_KEY } from '../practice/practice';
-import { isInside, Link, LINK_FILE, readLink } from '../target/links';
+import { clearLinkCache, isInside, Link, LINK_FILE, readLink } from '../target/links';
+import { ensureClone, fetchRemote, isCloned } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
 import { applyPlan, Plan, readPlan } from './plan';
+import { createProgressFile, progressKey, readProgress, StoredProgress, writeProgress } from './progress';
 import { toKey } from './scan';
 import { computeSteps, modifyStepFor, sortSteps, Step, StepInput, stepKey } from './StepModel';
 
@@ -50,7 +53,7 @@ interface State {
 const SKIP_EVENT = /[\\/](\.git|node_modules)[\\/]/;
 
 /** A session is a practice folder + its target (+ commit): a new commit is a new session. */
-const identity = (l: Link) => `${l.practiceRoot}|${l.targetRoot}|${l.ref ?? ''}`;
+const identity = (l: Link) => `${l.practiceRoot}|${l.source === 'remote' ? l.remote!.url : l.targetRoot}|${l.refLabel ?? ''}`;
 
 /**
  * Finds the practice folders relevant to this window and keeps their steps
@@ -66,9 +69,12 @@ export class Sessions implements vscode.Disposable {
 
   readonly onDidChange = this.emitter.event;
 
+  private fetchTimer?: NodeJS.Timeout;
+  private readonly cloneFailures = new Set<string>();
+
   constructor(
     private readonly context: vscode.ExtensionContext,
-    store: TargetStore,
+    private readonly store: TargetStore,
   ) {
     const links = vscode.workspace.createFileSystemWatcher(`**/${LINK_FILE.split(path.sep).join('/')}`);
     const rediscover = () => this.scheduleDiscover();
@@ -82,10 +88,44 @@ export class Sessions implements vscode.Disposable {
       store.onDidChangeTargets(rediscover),
       vscode.workspace.onDidChangeTextDocument((e) => this.onType(e)),
       vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('slipstream.remoteFetchMinutes')) this.scheduleFetch();
         if (e.affectsConfiguration('slipstream.whitespace') || e.affectsConfiguration('slipstream.stepOrder')) for (const s of this.states.values()) this.schedule(s, 0);
       }),
     );
     void this.discover();
+    this.scheduleFetch();
+  }
+
+  /** Fetch every remote target and rescan its sessions. */
+  async fetchRemotes(): Promise<number> {
+    const remotes = [...this.states.values()].filter((s) => s.link.source === 'remote' && s.link.remote);
+    for (const s of remotes) {
+      try {
+        await fetchRemote(s.link.remote!);
+        log.info(`Fetched ${s.link.remote!.url}`);
+      } catch (e) {
+        log.error(`Fetching ${s.link.remote!.url} failed`, e);
+      }
+    }
+    if (remotes.length) {
+      clearLinkCache();
+      this.store.invalidate();
+      await Promise.all(remotes.map((s) => this.rescan(s)));
+    }
+    return remotes.length;
+  }
+
+  /** Opt this session's practice folder into storing progress in .slipstream/progress.json. */
+  async storeProgressInFolder(practiceRoot: string) {
+    const s = this.states.get(practiceRoot);
+    if (!s) return;
+    createProgressFile(practiceRoot, progressKey(s.link.refLabel), { seen: s.seen, stats: s.stats });
+  }
+
+  private scheduleFetch() {
+    clearInterval(this.fetchTimer);
+    const minutes = vscode.workspace.getConfiguration('slipstream').get<number>('remoteFetchMinutes', 10);
+    if (minutes > 0) this.fetchTimer = setInterval(() => void this.fetchRemotes(), minutes * 60_000);
   }
 
   list(): Session[] {
@@ -167,11 +207,13 @@ export class Sessions implements vscode.Disposable {
     }
     for (const link of links.values()) {
       if (this.states.has(link.practiceRoot)) continue;
+      // Progress stored in the practice folder (if it opted in) wins over this machine's.
+      const stored = readProgress(link.practiceRoot, progressKey(link.refLabel));
       const s: State = {
         link,
-        stats: this.context.workspaceState.get<Stats>(statsKey(link)) ?? { typed: 0, accepted: 0, startedAt: Date.now() },
+        stats: stored?.stats ?? this.context.workspaceState.get<Stats>(statsKey(link)) ?? { typed: 0, accepted: 0, startedAt: Date.now() },
         pending: [],
-        seen: this.context.workspaceState.get<Record<string, Step>>(seenKey(link), {}),
+        seen: stored?.seen ?? this.context.workspaceState.get<Record<string, Step>>(seenKey(link), {}),
         scanned: false,
         completeNotified: false,
         watchers: [],
@@ -180,13 +222,24 @@ export class Sessions implements vscode.Disposable {
       s.watchers = link.ref ? [this.watch(s, link.practiceRoot)] : [this.watch(s, link.practiceRoot), this.watch(s, link.targetRoot)];
       this.states.set(link.practiceRoot, s);
       changed = true;
-      if (link.ref) {
+      if (link.pinned && link.ref) {
         void subjectOf(link.targetRoot, link.ref).then(
           (subject) => {
             s.subject = subject;
             this.emitter.fire();
           },
           () => undefined,
+        );
+      }
+      // An already-cloned remote may have moved since this machine last looked.
+      if (link.source === 'remote' && link.remote && isCloned(link.targetRoot)) {
+        void fetchRemote(link.remote).then(
+          () => {
+            clearLinkCache();
+            this.store.invalidate();
+            return this.rescan(s);
+          },
+          (e) => log.warn(`Fetching ${link.remote!.url} failed; using the cached copy (${(e as Error).message.split('\n')[0]})`),
         );
       }
       void this.rescan(s);
@@ -226,6 +279,12 @@ export class Sessions implements vscode.Disposable {
   }
 
   private async rescan(s: State) {
+    // The link may have changed underneath (a fetch moved a branch, an override appeared).
+    const fresh = readLink(s.link.practiceRoot);
+    if (fresh && identity(fresh) === identity(s.link)) s.link = fresh;
+    if (s.link.source === 'remote' && !isCloned(s.link.targetRoot)) {
+      if (!(await this.cloneRemote(s))) return;
+    }
     const started = Date.now();
     try {
       // A replay's target is a commit: the plan belongs to live agent work only.
@@ -286,9 +345,38 @@ export class Sessions implements vscode.Disposable {
     void this.context.workspaceState.update(statsKey(s.link), s.stats);
   }
 
+  /** First use of a remote target: clone it into the cache, then re-resolve the link. */
+  private async cloneRemote(s: State): Promise<boolean> {
+    const url = s.link.remote!.url;
+    try {
+      log.info(`Cloning ${url} into the remote cache`);
+      await ensureClone(s.link.remote!);
+    } catch (e) {
+      log.error(`Cloning ${url} failed`, e);
+      if (!this.cloneFailures.has(url)) {
+        this.cloneFailures.add(url);
+        void vscode.window.showWarningMessage(
+          `Slipstream couldn't fetch ${url}: ${(e as Error).message.split('\n')[0]}. Point this machine at a local checkout instead?`,
+          'Pick Local Checkout…',
+        ).then((c) => c && vscode.commands.executeCommand('slipstream.pickLocalCheckout', s.link.practiceRoot));
+      }
+      return false;
+    }
+    clearLinkCache();
+    s.link = readLink(s.link.practiceRoot) ?? s.link;
+    this.store.invalidate();
+    return true;
+  }
+
+  private persist(s: State) {
+    const stored: StoredProgress = { seen: s.seen, stats: s.stats };
+    writeProgress(s.link.practiceRoot, progressKey(s.link.refLabel), stored);
+  }
+
   private async record(s: State) {
     for (const step of s.pending) s.seen[stepKey(step)] = step;
     await this.context.workspaceState.update(seenKey(s.link), s.seen);
+    this.persist(s);
     this.emitter.fire();
     if (s.pending.length === 0 && Object.keys(s.seen).length > 0 && !s.completeNotified) {
       s.completeNotified = true;
@@ -298,13 +386,13 @@ export class Sessions implements vscode.Disposable {
   }
 
   private async announceComplete(s: State) {
-    const what = s.link.ref
+    const what = s.link.pinned && s.link.ref
       ? `Commit ${s.link.ref.slice(0, 7)}${s.subject ? ` "${s.subject}"` : ''} done`
       : `Practice complete: ${path.basename(s.link.practiceRoot)} matches ${path.basename(s.link.targetRoot)}`;
     const replay = s.link.replay;
     const hasNext = !!replay && replay.index + 1 < replay.commits.length;
     // At the end of a replay, there may be more to type: later commits and uncommitted work.
-    const canContinue = !!s.link.ref && !hasNext && (await changedSince(s.link.targetRoot, s.link.ref).catch(() => false));
+    const canContinue = !!s.link.pinned && !hasNext && (await moreAfter(s.link));
     const actions = [...(hasNext ? ['Next Commit'] : []), ...(canContinue ? ['Continue to Current Files'] : [])];
     const choice = await vscode.window.showInformationMessage(`${what}. ${summarize(s.stats)}`, ...actions);
     if (choice === 'Next Commit') await vscode.commands.executeCommand('slipstream.replayNextCommit', s.link.practiceRoot);
@@ -312,6 +400,7 @@ export class Sessions implements vscode.Disposable {
   }
 
   dispose() {
+    clearInterval(this.fetchTimer);
     for (const s of this.states.values()) {
       s.watchers.forEach((w) => w.dispose());
       clearTimeout(s.timer);

@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { isInside, META_DIR, readLink, writeLink } from '../target/links';
+import { isInside, Link, META_DIR, readLink, updateLink, writeLink } from '../target/links';
 import { TargetStore } from '../target/TargetStore';
-import { changedSince, commitsInRange, excludeFromGit, gitArchive, parentOf, repoPaths } from './git';
+import { changedBetween, changedSince, commitsInRange, excludeFromGit, gitArchive, originOf, parentOf, repoPaths } from './git';
 import { history, pickCommit } from './pickers';
 import { log } from '../log';
 import { pickProject, remember } from './practice';
@@ -26,9 +26,12 @@ export async function createReplay(opts: { targetRoot: string; practiceRoot: str
     const { prefix } = await repoPaths(targetRoot);
     await gitArchive(targetRoot, `${parent}:${prefix}`, practiceRoot);
   }
+  // Record the project's origin too, so a practice repo cloned elsewhere can still find it.
+  const remote = await originOf(targetRoot);
   writeLink(practiceRoot, targetRoot, {
     ref: commits[0],
     replay: commits.length > 1 ? { commits, index: 0 } : undefined,
+    ...(remote ? { remote } : {}),
   });
 }
 
@@ -42,7 +45,7 @@ export function advanceReplay(practiceRoot: string): boolean {
   const replay = link?.replay;
   if (!link || !replay || replay.index + 1 >= replay.commits.length) return false;
   const index = replay.index + 1;
-  writeLink(practiceRoot, link.targetRoot, { ref: replay.commits[index], replay: { ...replay, index } });
+  updateLink(practiceRoot, { ref: replay.commits[index], replay: { ...replay, index } });
   return true;
 }
 
@@ -53,18 +56,41 @@ export function advanceReplay(practiceRoot: string): boolean {
  * isn't a replay.
  */
 export function continueToWorkingTree(practiceRoot: string): boolean {
-  const link = readLink(practiceRoot);
-  if (!link?.ref) return false;
-  writeLink(practiceRoot, link.targetRoot);
+  // Only a link that pins a commit can continue. (A remote link always *reads* a
+  // commit, but following a branch pins nothing.)
+  if (!pinnedRef(practiceRoot)) return false;
+  // Dropping the pinned commit leaves the working tree, or a remote's branch, as the target.
+  updateLink(practiceRoot, { ref: undefined, replay: undefined });
   return true;
 }
 
 /** Whether a replay at its last commit has anything left to type in the current files. */
 export async function moreAfterReplay(practiceRoot: string): Promise<boolean> {
   const link = readLink(practiceRoot);
-  if (!link?.ref) return false;
+  if (!link?.ref || !pinnedRef(practiceRoot)) return false;
   if (link.replay && link.replay.index + 1 < link.replay.commits.length) return false;
+  return moreAfter(link);
+}
+
+/**
+ * Whether the project has moved on since the link's pinned commit: for a
+ * local project, later commits or uncommitted work; for a remote one, the
+ * tracked branch having moved past it.
+ */
+export function moreAfter(link: Link): Promise<boolean> {
+  if (!link.ref) return Promise.resolve(false);
+  if (link.source === 'remote') return changedBetween(link.targetRoot, link.ref, link.remote?.ref ?? 'HEAD').catch(() => false);
   return changedSince(link.targetRoot, link.ref).catch(() => false);
+}
+
+/** The commit link.json pins, if any — not the one a remote branch currently resolves to. */
+export function pinnedRef(practiceRoot: string): string | undefined {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(practiceRoot, META_DIR, 'link.json'), 'utf8'));
+    return typeof raw.ref === 'string' && raw.ref ? raw.ref : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function replayContinue(store: TargetStore, practiceRoot?: string, pendingSteps = 0) {
