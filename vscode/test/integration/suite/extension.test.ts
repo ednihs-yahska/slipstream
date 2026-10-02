@@ -8,7 +8,7 @@ import { createReplay, moreAfterReplay } from '../../../src/practice/replay';
 import { hideFromSearch, SEARCH_PATTERN } from '../../../src/practice/search';
 import { execFileSync } from 'child_process';
 
-const api = () => vscode.extensions.getExtension<SlipstreamApi>('EdnihsYahska.slipstream')!.exports;
+const api = () => vscode.extensions.getExtension<SlipstreamApi>('EdnihsYahska.slipstream-practice')!.exports;
 const changes = async (editor: vscode.TextEditor) => (await api().store.getHunks(editor.document)) ?? [];
 
 /** The demo project: the agent's finished code (the target). */

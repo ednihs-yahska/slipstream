@@ -64,10 +64,10 @@ npm run package
 
 This runs `vscode:prepublish` (a minified production build of `dist/extension.js` and the standalone
 MCP server `dist/mcp.js`) and writes
-`slipstream-<version>.vsix`. Install it locally with:
+`slipstream-practice-<version>.vsix`. Install it locally with:
 
 ```bash
-code --install-extension slipstream-0.2.0.vsix
+code --install-extension slipstream-practice-0.3.0.vsix
 ```
 
 The `repository` field points at <https://github.com/ednihs-yahska/slipstream>. The extension sits in
@@ -89,7 +89,7 @@ Odd minor versions (0.3.x) go to the pre-release channel; even ones (0.4.x) are 
 2. `az login` as an identity that is a member of the `EdnihsYahska` publisher, then
    `npx vsce verify-pat --azure-credential EdnihsYahska`.
 3. `npm run package:pre`, then install the `.vsix` into a scratch extensions folder and smoke-test it:
-   `code --extensions-dir <tmp> --install-extension slipstream-<version>.vsix`.
+   `code --extensions-dir <tmp> --install-extension slipstream-practice-<version>.vsix`.
 4. `npm run publish:pre` (builds, then `vsce publish --pre-release --azure-credential`).
 5. Tag the release (`git tag v<version>`, push), and publish the GitHub release with the `.vsix` attached.
 
@@ -105,7 +105,7 @@ Publishing to the Visual Studio Marketplace is manual and needs the publisher's 
 3. `npx vsce publish`, or `npx vsce publish minor` to bump the version and publish in one go.
 4. Optionally publish to Open VSX too: create an eclipse.org account, sign the publisher agreement on
    open-vsx.org, create a token, `npx ovsx create-namespace EdnihsYahska -p <token>` once, then
-   `npx ovsx publish slipstream-<version>.vsix -p <token>`.
+   `npx ovsx publish slipstream-practice-<version>.vsix -p <token>`.
 
 The Marketplace icon must be at least 128×128 (256×256 for Retina) and may not be an SVG. `media/icon.png`
 is the logo (`media/logo.png`, 1000×1000, not packaged) scaled to 256×256:

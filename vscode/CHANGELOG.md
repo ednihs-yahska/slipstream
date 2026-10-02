@@ -3,8 +3,8 @@
 ## 0.3.0 (pre-release)
 
 The first published version, on the Marketplace's pre-release channel. It includes everything below.
-Listed as **Slipstream Practice**, since "Slipstream" is taken on the Marketplace; the extension ID stays
-`EdnihsYahska.slipstream`.
+Listed as **Slipstream Practice** (`EdnihsYahska.slipstream-practice`), since "Slipstream" is taken on
+the Marketplace. Commands, settings (`slipstream.*`) and the `.slipstream/` folder keep their names.
 
 **Typing speed and time left.**
 
