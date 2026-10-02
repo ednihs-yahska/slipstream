@@ -1,0 +1,513 @@
+{
+  "name": "slipstream",
+  "displayName": "Slipstream",
+  "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
+  "version": "0.1.0",
+  "publisher": "EdnihsYahska",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ednihs-yahska/slipstream.git"
+  },
+  "homepage": "https://github.com/ednihs-yahska/slipstream#readme",
+  "bugs": {
+    "url": "https://github.com/ednihs-yahska/slipstream/issues"
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0d1b36",
+    "theme": "dark"
+  },
+  "preview": true,
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Education",
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "practice",
+    "learning",
+    "typing",
+    "ghost text",
+    "ai agent",
+    "claude",
+    "copilot",
+    "git history",
+    "replay",
+    "tab completion"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "slipstream.chooseMode",
+        "title": "Choose Practice Mode\u2026",
+        "category": "Slipstream",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "slipstream.startPractice",
+        "title": "Start Practice\u2026",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.linkPracticeFolder",
+        "title": "Link an Existing Folder as Practice Folder\u2026",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.setUpAgent",
+        "title": "Set Up Agent\u2026",
+        "category": "Slipstream",
+        "icon": "$(hubot)"
+      },
+      {
+        "command": "slipstream.connectAgent",
+        "title": "Connect Your Agent (MCP)\u2026",
+        "category": "Slipstream",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "slipstream.openPracticeFolder",
+        "title": "Open Practice Folder\u2026",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.replayCommit",
+        "title": "Replay a Commit\u2026",
+        "category": "Slipstream",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "slipstream.replayRange",
+        "title": "Replay a Range of Commits\u2026",
+        "category": "Slipstream",
+        "icon": "$(history)"
+      },
+      {
+        "command": "slipstream.replayNextCommit",
+        "title": "Next Commit",
+        "category": "Slipstream",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "slipstream.replayContinue",
+        "title": "Continue to Current Files",
+        "category": "Slipstream",
+        "icon": "$(arrow-circle-right)"
+      },
+      {
+        "command": "slipstream.acceptWord",
+        "title": "Accept Next Word",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.acceptLine",
+        "title": "Accept Rest of Line",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.nextChange",
+        "title": "Go to Next Change",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.previousChange",
+        "title": "Go to Previous Change",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.deleteMarked",
+        "title": "Delete Text Marked for Removal at Cursor",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.applyMine",
+        "title": "Use My Version in the Project",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.openInTarget",
+        "title": "Open in Project",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.setTarget",
+        "title": "Set Target File for Current Editor\u2026",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.clearTarget",
+        "title": "Clear Target File for Current Editor",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.showTargetDiff",
+        "title": "Show Diff Against Target",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.nextStep",
+        "title": "Go to Next Step",
+        "category": "Slipstream",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "slipstream.steps.refresh",
+        "title": "Refresh Steps",
+        "category": "Slipstream",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "slipstream.steps.open",
+        "title": "Open Step",
+        "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.steps.createFile",
+        "title": "Create Practice File",
+        "category": "Slipstream",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "slipstream.steps.movePracticeFile",
+        "title": "Move Practice File",
+        "category": "Slipstream",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "slipstream.steps.deletePracticeFile",
+        "title": "Delete Practice File",
+        "category": "Slipstream",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "slipstream.steps.copyFromProject",
+        "title": "Copy from Project (skip typing)",
+        "category": "Slipstream",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "slipstream.steps.showDiff",
+        "title": "Show Diff with Project",
+        "category": "Slipstream",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "slipstream.steps.openProjectFile",
+        "title": "Open Project File",
+        "category": "Slipstream",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "slipstream.steps.resetProgress",
+        "title": "Reset Progress",
+        "category": "Slipstream",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "slipstream.acceptWord",
+        "key": "tab",
+        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly && !suggestWidgetVisible"
+      },
+      {
+        "command": "slipstream.acceptLine",
+        "key": "shift+tab",
+        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly && !suggestWidgetVisible"
+      },
+      {
+        "command": "slipstream.nextChange",
+        "key": "alt+]",
+        "when": "editorTextFocus && slipstream.hasTarget"
+      },
+      {
+        "command": "slipstream.previousChange",
+        "key": "alt+[",
+        "when": "editorTextFocus && slipstream.hasTarget"
+      },
+      {
+        "command": "slipstream.nextStep",
+        "key": "alt+shift+]",
+        "when": "editorTextFocus || focusedView == slipstream.steps"
+      }
+    ],
+    "configuration": {
+      "title": "Slipstream",
+      "properties": {
+        "slipstream.defaultPracticeDir": {
+          "type": "string",
+          "default": ".slipstream/practice",
+          "description": "Where \"Start Practice\" puts the practice folder when you choose \"Inside this project\" (relative to the project)."
+        },
+        "slipstream.maxGhostLines": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "description": "Maximum number of lines shown as ghost text at once."
+        },
+        "slipstream.hideFromSearch": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When a practice folder is created under `.slipstream/` in a project, add `**/.slipstream/**` to `search.exclude` in your user settings, so Find in Files and Quick Open don't mix practice and project files. The Explorer still shows them."
+        },
+        "slipstream.whitespace": {
+          "type": "string",
+          "enum": [
+            "lenient",
+            "exact"
+          ],
+          "default": "lenient",
+          "enumDescriptions": [
+            "Ignore differences that are only whitespace: indentation, spacing, blank lines. Your formatter can do its thing.",
+            "Every character must match, including whitespace."
+          ],
+          "description": "How strictly whitespace must match the target."
+        },
+        "slipstream.mode": {
+          "type": "string",
+          "enum": [
+            "ghost",
+            "delayed",
+            "hint"
+          ],
+          "default": "ghost",
+          "enumDescriptions": [
+            "Show the code still to type, right away.",
+            "Show it only after you've been stuck at the spot for a few seconds: try to recall it first.",
+            "Never show the code: a nudge instead (number of lines, first word, names it defines)."
+          ],
+          "markdownDescription": "How much the ghost gives away. In every mode, `Tab` / `Shift+Tab` still fill in a word / line."
+        },
+        "slipstream.revealDelaySeconds": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0.5,
+          "maximum": 60,
+          "markdownDescription": "In `delayed` mode, how long you're stuck at a spot before the code appears. Typing a correct character restarts the clock."
+        },
+        "slipstream.stepOrder": {
+          "type": "string",
+          "enum": [
+            "dependencies",
+            "path"
+          ],
+          "default": "dependencies",
+          "enumDescriptions": [
+            "Files come after the files they import (when there's no agent plan).",
+            "Alphabetical by path."
+          ],
+          "description": "How steps are ordered when the agent hasn't left a plan."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "slipstream",
+          "title": "Slipstream",
+          "icon": "media/steps.svg"
+        }
+      ]
+    },
+    "views": {
+      "slipstream": [
+        {
+          "id": "slipstream.steps",
+          "name": "Steps",
+          "icon": "media/steps.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "slipstream.steps",
+        "contents": "No practice folder in this window yet.\n[Start Practice](command:slipstream.startPractice)\n[Replay a Commit](command:slipstream.replayCommit)\nThe agent works in your project; you retype its changes in a practice folder. Or retype commits from this repo's history.\n[Link an Existing Folder](command:slipstream.linkPracticeFolder) \u00b7 [Replay a Range of Commits](command:slipstream.replayRange)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "slipstream.steps.open",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.createFile",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.movePracticeFile",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.deletePracticeFile",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.copyFromProject",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.showDiff",
+          "when": "false"
+        },
+        {
+          "command": "slipstream.steps.openProjectFile",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "slipstream.chooseMode",
+          "when": "view == slipstream.steps",
+          "group": "0_mode@1"
+        },
+        {
+          "command": "slipstream.nextStep",
+          "when": "view == slipstream.steps",
+          "group": "navigation@1"
+        },
+        {
+          "command": "slipstream.steps.refresh",
+          "when": "view == slipstream.steps",
+          "group": "navigation@2"
+        },
+        {
+          "command": "slipstream.startPractice",
+          "when": "view == slipstream.steps",
+          "group": "1_practice@1"
+        },
+        {
+          "command": "slipstream.linkPracticeFolder",
+          "when": "view == slipstream.steps",
+          "group": "1_practice@2"
+        },
+        {
+          "command": "slipstream.replayCommit",
+          "when": "view == slipstream.steps",
+          "group": "2_replay@1"
+        },
+        {
+          "command": "slipstream.replayRange",
+          "when": "view == slipstream.steps",
+          "group": "2_replay@2"
+        },
+        {
+          "command": "slipstream.setUpAgent",
+          "when": "view == slipstream.steps",
+          "group": "1_practice@3"
+        },
+        {
+          "command": "slipstream.connectAgent",
+          "when": "view == slipstream.steps",
+          "group": "1_practice@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "slipstream.steps.createFile",
+          "when": "view == slipstream.steps && viewItem == step-create",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.steps.movePracticeFile",
+          "when": "view == slipstream.steps && viewItem == step-rename",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.steps.deletePracticeFile",
+          "when": "view == slipstream.steps && viewItem == step-delete",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.steps.copyFromProject",
+          "when": "view == slipstream.steps && viewItem == step-copy",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.steps.showDiff",
+          "when": "view == slipstream.steps && viewItem =~ /^step-(modify|rename)$/",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.steps.showDiff",
+          "when": "view == slipstream.steps && viewItem =~ /^step-(create|modify|rename)$/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "slipstream.steps.openProjectFile",
+          "when": "view == slipstream.steps && viewItem =~ /^step-(create|modify|rename|copy|done)$/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "slipstream.steps.copyFromProject",
+          "when": "view == slipstream.steps && viewItem =~ /^step-(create|modify|rename)$/",
+          "group": "2_skip@1"
+        },
+        {
+          "command": "slipstream.steps.resetProgress",
+          "when": "view == slipstream.steps && viewItem =~ /^session/",
+          "group": "1_session@1"
+        },
+        {
+          "command": "slipstream.openPracticeFolder",
+          "when": "view == slipstream.steps && viewItem =~ /^session/",
+          "group": "1_session@2"
+        },
+        {
+          "command": "slipstream.replayNextCommit",
+          "when": "view == slipstream.steps && viewItem == session-replay",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.replayNextCommit",
+          "when": "view == slipstream.steps && viewItem == session-replay",
+          "group": "0_replay@1"
+        },
+        {
+          "command": "slipstream.replayContinue",
+          "when": "view == slipstream.steps && viewItem == session-replay-end",
+          "group": "inline"
+        },
+        {
+          "command": "slipstream.replayContinue",
+          "when": "view == slipstream.steps && viewItem =~ /^session-replay/",
+          "group": "0_replay@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "vscode:prepublish": "node esbuild.mjs --production",
+    "package": "vsce package",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:integration": "npm run build && tsc -p test/integration/tsconfig.json && node out/test/integration/runTests.js",
+    "test": "npm run typecheck && npm run test:unit && npm run test:integration"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "diff": "^9.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.100.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.25.0",
+    "mocha": "^11.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

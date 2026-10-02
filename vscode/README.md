@@ -1,0 +1,225 @@
+# Slipstream
+
+**Draft behind your AI agent.** The agent writes the code in your project as usual; you retype its
+changes yourself in a **practice folder**, with what's left to type shown as ghost text. You end up with
+the same code, but you wrote it, and you understand it.
+
+| Key | Does |
+|---|---|
+| `Tab` | accept the next word (at end of line: the line break + indent) |
+| `Shift+Tab` | accept the rest of the line (at end of line: the whole next line) |
+| `Alt+]` / `Alt+[` | jump to the next / previous change in the file |
+| `Alt+Shift+]` | go to the next step (file) |
+
+`Tab` and `Shift+Tab` only take over while a Slipstream ghost is showing; otherwise they indent and
+outdent as usual. There's deliberately no key to accept a whole block: the point is to type it.
+
+No agent? **Replay any repository's git history** and retype it commit by commit.
+
+## Practice modes
+
+**Slipstream: Choose Practice Mode…** (or the eye button in the Steps view):
+
+| Mode | The ghost |
+|---|---|
+| **Ghost** (default) | shows the code still to type, right away |
+| **Delayed** | appears only after you've been stuck at a spot for a few seconds (`slipstream.revealDelaySeconds`); try to recall it first. Typing a correct character restarts the clock |
+| **Hint** | never shows the code; a nudge instead, e.g. `◂ 3 lines · starts with export · defines clamp` |
+
+In every mode, `Tab` / `Shift+Tab` still fill in a word / line: a peek when you're stuck.
+
+**Requirements:** VS Code 1.100 or later. Git, for starting from a commit, replays, and `.gitignore`
+support. Works with any coding agent; extra setup is available for Claude Code.
+
+## Use it on your own project
+
+1. Let the agent make its changes in your project.
+2. Run **Slipstream: Start Practice…**
+   - **Where:** inside this project (`.slipstream/practice/`) or somewhere else on disk.
+   - **Start from:** the last commit (your project before the agent's uncommitted changes), an earlier
+     commit picked from the history (you retype everything since, in one go), or empty.
+3. Open the **Slipstream** view in the activity bar and work through the steps.
+
+## Working with your agent
+
+Run **Slipstream: Set Up Agent…** (also offered after Start Practice). It shows a preview of every
+change before writing it:
+
+- **Instructions** for the agent, in `CLAUDE.local.md` (just you), `CLAUDE.md` (your team) or `AGENTS.md`
+  (other agents). They say a human will retype the changes, so: keep diffs focused, leave a plan, and
+  stay out of `.slipstream/`. Re-running updates the section in place.
+- **Claude Code deny rules** in `.claude/settings.local.json`, so Claude can't read or edit your practice
+  folders.
+
+Personal files are kept out of git through `.git/info/exclude`.
+
+### The plan file
+
+With the instructions in place, the agent writes `.slipstream/plan.md` in your project:
+
+```markdown
+# Plan: Add greeting options
+1. `src/types.ts`: add `GreetOptions`, used by `greet()`
+2. `src/greet.ts`: accept options; add the excited variant
+3. `src/legacy.ts`: delete, replaced by the options
+```
+
+The Steps view then follows that order, shows each reason beside its step, and uses the title as the
+session's name. Files the plan doesn't mention come after. Edits to the plan show up immediately.
+
+Without a plan, steps follow the imports: a file comes after the files it imports (JavaScript/TypeScript
+and Python), so you write what's needed before what uses it. Each step says what it adds, e.g.
+*adds GreetOptions, greet*.
+
+### Connect your agent (MCP)
+
+**Slipstream: Connect Your Agent (MCP)…** gives your agent read-only tools to see your practice:
+
+- `slipstream_progress`: the steps you have left, in order, with reasons and the names each adds
+- `slipstream_read_practice_file`: what you've typed so far in a practice file
+- `slipstream_list_practice_folders`: your practice folders for a project
+
+So you can ask "why does step 3 need that?" or "is my version of `greet` OK?" and the agent knows where
+you are. The command gives you the Claude Code line to run (it never runs it for you); any other agent
+can run the same script as a stdio MCP server. The tools only read; they never change your files.
+
+## Replay git history
+
+Practise on code that's already written: yours, your team's, or an open-source project's.
+
+- **Slipstream: Replay a Commit…**: pick a commit; you get a practice folder at its parent
+  (`.slipstream/replay/` or anywhere) and retype exactly what that commit changed.
+- **Slipstream: Replay a Range of Commits…**: pick the oldest and newest commits; you retype them
+  one after another. When a commit is done, choose **Next Commit**.
+- After the last replayed commit, **Continue to Current Files** (offered when there's more) carries on to
+  the project as it is now: later commits and uncommitted changes.
+
+Two ways to start from an earlier commit, then:
+
+| | Start Practice → *An earlier commit…* | Replay a Range → *Continue to Current Files* |
+|---|---|---|
+| You type | everything since that commit, all at once | one commit at a time, then what's left |
+| Steps | one list for the whole difference | per commit, with a summary after each |
+| Ends at | your current files | your current files |
+
+Both pickers list recent commits and also take any revision (a branch, tag, `HEAD~5`, a hash).
+
+The target is read straight from git, so your checkout (and any uncommitted work) is never touched.
+Project files open read-only. When you finish, you get a summary: time taken, and how much you typed
+yourself versus filled in with Tab.
+
+## How the practice folder finds its target
+
+A practice folder contains `.slipstream/link.json`:
+
+```json
+{ "target": "../.." }
+```
+
+`target` is the project, either absolute or relative to the practice folder (`~` works). Replays add
+`"ref"` (the commit being typed) and `"replay": { "commits": [...], "index": 0 }`. A practice file at
+`src/a.ts` is typed towards `<target>/src/a.ts`. Because the link sits in the practice folder, it works
+inside the project, elsewhere on disk, or with the practice folder open in its own window. **Link an
+Existing Folder as Practice Folder…** writes this file for any two folders.
+
+Want it the other way round, typing in the project while the agent writes to a copy? Put
+`{ "target": ".slipstream/shadow" }` in `<project>/.slipstream/link.json` and point the agent at
+`.slipstream/shadow/`.
+
+An in-project practice folder is kept out of the way:
+
+- **Git:** the project's whole `.slipstream/` folder (practice and replay folders, the agent's plan) is
+  added to `.git/info/exclude` (local, never committed), so git and git-aware tools ignore it.
+- **VS Code search:** `**/.slipstream/**` is added to `search.exclude` in your **user** settings, so
+  Find in Files and Quick Open (`Cmd+P`) only show project files. The Explorer still shows the practice
+  folder, so open practice files from there. Nothing is written to the project's `.vscode/settings.json`.
+  Turn this off with `slipstream.hideFromSearch`.
+
+## The Steps view
+
+The Slipstream icon in the activity bar lists, per practice folder, what's left to do:
+
+| Step | Click | Button |
+|---|---|---|
+| **create** | creates the empty practice file and puts you where the ghost starts | create |
+| **modify** · N changes left | opens the file at the first change | diff |
+| **move** | asks to move your practice file to the project's new path | move |
+| **delete** | shows the file | delete (to trash) |
+| **copy** (lockfiles, binaries, >512 KB) | opens the project's file | copy from project |
+
+Done steps stay at the bottom, ticked. The status bar shows `N changes left · done/total steps`.
+Right-click a step for *Show Diff with Project*, *Open Project File*, or *Copy from Project (skip typing)*.
+
+Project files are listed with git, so `.gitignore` is respected and the agent's new, uncommitted files
+count. Files in the practice folder that the project ignores (e.g. `dist/`) aren't listed as deletes.
+
+## In the editor
+
+- **Ghost text** at the cursor: the code still to type here.
+- **`▸` markers**: other places with code to type (hover to preview it).
+- **Strikethrough**: code the target no longer has. Delete it yourself, or bind
+  `slipstream.deleteMarked` to a key.
+- **Status bar**: changes left; click to jump to the next one.
+
+Whitespace-only differences (indentation, spacing, blank lines) are ignored by default, so your formatter
+can't get in the way. Set `slipstream.whitespace` to `exact` to require every character. If the editor
+auto-indents deeper than the target, the ghost still shows and Tab types over the extra spaces.
+
+## When you write something different on purpose
+
+Your version can become the real code. Either edit the project file by hand (the ghost text follows), or
+put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
+
+- **Use my version in the project**: writes your version of that change into the project file
+  (also *Add my text…* / *Remove this from the project* when one side is empty).
+- **Open in project to edit by hand**: opens the project file beside you with that spot selected.
+
+## Settings
+
+| Setting | Default | |
+|---|---|---|
+| `slipstream.whitespace` | `lenient` | `lenient` ignores whitespace-only differences; `exact` requires every character |
+| `slipstream.maxGhostLines` | `30` | the most lines of ghost text shown at once |
+| `slipstream.defaultPracticeDir` | `.slipstream/practice` | where Start Practice puts an in-project practice folder |
+| `slipstream.hideFromSearch` | `true` | hide in-project practice folders from Find in Files and Quick Open |
+| `slipstream.mode` | `ghost` | `ghost`, `delayed` or `hint` (see Practice modes) |
+| `slipstream.revealDelaySeconds` | `3` | in `delayed` mode, how long you're stuck before the code appears |
+| `slipstream.stepOrder` | `dependencies` | without a plan: `dependencies` (imported files first) or `path` |
+
+Errors and (at debug level) scan timings go to the **Slipstream** output channel.
+
+## Commands
+
+| Command | |
+|---|---|
+| Slipstream: Start Practice… | create a practice folder for this project |
+| Slipstream: Link an Existing Folder as Practice Folder… | link any folder to any target folder |
+| Slipstream: Set Up Agent… | agent instructions + Claude Code deny rules, previewed first |
+| Slipstream: Connect Your Agent (MCP)… | read-only tools for your agent to see your progress |
+| Slipstream: Choose Practice Mode… | ghost, delayed, or hint |
+| Slipstream: Open Practice Folder… | open a known practice folder in a new window |
+| Slipstream: Replay a Commit… / Replay a Range of Commits… | retype history |
+| Slipstream: Next Commit | move a range replay on to its next commit |
+| Slipstream: Continue to Current Files | after a replay's last commit, type on towards the project as it is now |
+| Slipstream: Set Target File for Current Editor… | use any single file as the target |
+| Slipstream: Clear Target File for Current Editor | undo the above |
+| Slipstream: Show Diff Against Target | VS Code diff view of practice ↔ target |
+| Slipstream: Delete Text Marked for Removal at Cursor | unbound by default |
+| Slipstream: Use My Version in the Project | writes your version of the change at the cursor into the project |
+| Slipstream: Open in Project | the project file beside you, at the change under the cursor |
+| Slipstream: Go to Next Step | `Alt+Shift+]` |
+| Slipstream: Refresh Steps / Reset Progress | in the Steps view |
+
+## Known limitations
+
+- Ghost text appears only when the cursor is where the missing code starts (spaces/tabs before the
+  cursor are tolerated). Use `Alt+]` to get there.
+- Search hiding covers practice folders under `.slipstream/`. A custom in-project location relies on
+  `.git/info/exclude` alone.
+- An in-project practice folder may be picked up by project tooling that ignores git (e.g. a `tsconfig.json`
+  including `**/*`). Use a folder outside the project if that bites.
+- Other inline-completion providers (e.g. Copilot) can show suggestions at the same time: VS Code has no
+  API to silence them. A one-time notice offers Copilot's settings; Tab always types Slipstream's ghost.
+- Without a plan file, steps follow imports for JavaScript/TypeScript and Python; other languages fall
+  back to path order.
+- Within a file, changes go top to bottom; ordering by what depends on what is file-level only.

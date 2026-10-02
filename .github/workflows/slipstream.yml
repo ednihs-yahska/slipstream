@@ -1,0 +1,54 @@
+name: Slipstream
+
+# Pushes run Linux only; pull requests and manual runs add macOS and Windows.
+# macOS runners bill at roughly ten times the Linux rate.
+on:
+  push:
+    paths: ['vscode/**', '.github/workflows/slipstream.yml']
+  pull_request:
+    paths: ['vscode/**', '.github/workflows/slipstream.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: vscode
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      # Integration tests launch a real VS Code; Linux needs a virtual display.
+      - run: xvfb-run -a npm run test:integration
+        if: runner.os == 'Linux'
+      - run: npm run test:integration
+        if: runner.os != 'Linux'
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: npm ci
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slipstream-vsix
+          path: vscode/*.vsix

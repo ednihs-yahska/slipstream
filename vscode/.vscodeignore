@@ -1,0 +1,18 @@
+# Only the bundle, media and docs ship in the .vsix.
+src/**
+test/**
+demo/**
+out/**
+node_modules/**
+.vscode/**
+.vscode-test/**
+.github/**
+dist/**/*.map
+media/icon.svg
+esbuild.mjs
+tsconfig.json
+vitest.config.ts
+PLAN.md
+CONTRIBUTING.md
+*.vsix
+.gitignore
