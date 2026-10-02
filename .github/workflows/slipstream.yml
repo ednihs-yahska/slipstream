@@ -1,7 +1,6 @@
 name: Slipstream
 
-# Pushes run Linux only; pull requests and manual runs add macOS and Windows.
-# macOS runners bill at roughly ten times the Linux rate.
+# Every push and pull request runs on Linux, macOS and Windows.
 on:
   push:
     paths: ['vscode/**', '.github/workflows/slipstream.yml']
@@ -18,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-latest"]' || '["ubuntu-latest","macos-latest","windows-latest"]') }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

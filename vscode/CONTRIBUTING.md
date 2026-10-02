@@ -74,9 +74,8 @@ them against the repository root; pass `--baseContentUrl`/`--baseImagesUrl` if t
 ## CI
 
 `.github/workflows/slipstream.yml` (at the repository root) runs typecheck, unit and integration tests.
-Pushes run on Linux only; pull requests and manual runs (*Actions → Slipstream → Run workflow*) add macOS
-and Windows, since macOS runners bill at roughly ten times the Linux rate. Each run uploads the `.vsix` as
-an artifact.
+Every push and pull request runs on Linux, macOS and Windows; it can also be started by hand
+(*Actions → Slipstream → Run workflow*). Each run uploads the `.vsix` as an artifact.
 
 ## Publish
 

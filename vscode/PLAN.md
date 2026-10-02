@@ -237,7 +237,7 @@ Practice folders (inside/outside project, seeded from a commit or empty), link f
 - **Diagnostics:** "Slipstream" output channel with errors, and scan timings at debug level.
 - **Performance:** 3,000-file git project: ~0.7 s cold scan, ~0.1 s rescan; typing recomputes one file.
 - **Stats** (typed vs Tab-filled, time) in the session tooltip as well as the completion notice.
-- **CI:** GitHub Actions at the repo root (`.github/workflows/slipstream.yml`): typecheck, unit and integration tests; Linux on pushes, plus macOS and Windows on pull requests and manual runs (macOS bills ~10× Linux); packages the `.vsix` as an artifact.
+- **CI:** GitHub Actions at the repo root (`.github/workflows/slipstream.yml`): typecheck, unit and integration tests; Linux, macOS and Windows on every push and pull request; packages the `.vsix` as an artifact.
 - **Repository:** <https://github.com/ednihs-yahska/slipstream> (`repository` field set; the extension lives in `vscode/`).
 - **Open:** the Marketplace icon is a placeholder until the Slipstream logo is saved as `media/logo.png`.
 
