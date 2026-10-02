@@ -80,6 +80,19 @@ them against the repository root; pass `--baseContentUrl`/`--baseImagesUrl` if t
 Every push and pull request runs on Linux, macOS and Windows; it can also be started by hand
 (*Actions → Slipstream → Run workflow*). Each run uploads the `.vsix` as an artifact.
 
+## Publish a pre-release
+
+Odd minor versions (0.3.x) go to the pre-release channel; even ones (0.4.x) are releases.
+
+1. Check by hand, once per release, that **pressing Tab types the ghost** (F5 → demo → practice `greet.ts`).
+   The tests call the commands directly and never press a real key.
+2. `az login` as an identity that is a member of the `EdnihsYahska` publisher, then
+   `npx vsce verify-pat --azure-credential EdnihsYahska`.
+3. `npm run package:pre`, then install the `.vsix` into a scratch extensions folder and smoke-test it:
+   `code --extensions-dir <tmp> --install-extension slipstream-<version>.vsix`.
+4. `npm run publish:pre` (builds, then `vsce publish --pre-release --azure-credential`).
+5. Tag the release (`git tag v<version>`, push), and publish the GitHub release with the `.vsix` attached.
+
 ## Publish
 
 Publishing to the Visual Studio Marketplace is manual and needs the publisher's credentials:

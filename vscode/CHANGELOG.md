@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.3.0 (preview)
+## 0.3.0 (pre-release)
+
+The first published version, on the Marketplace's pre-release channel. It includes everything below.
 
 **Typing speed and time left.**
 

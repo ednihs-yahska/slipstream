@@ -584,7 +584,9 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:integration": "npm run build && tsc -p test/integration/tsconfig.json && node out/test/integration/runTests.js",
-    "test": "npm run typecheck && npm run test:unit && npm run test:integration"
+    "test": "npm run typecheck && npm run test:unit && npm run test:integration",
+    "package:pre": "vsce package --pre-release",
+    "publish:pre": "vsce publish --pre-release --azure-credential"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
