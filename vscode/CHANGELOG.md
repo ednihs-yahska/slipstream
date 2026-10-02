@@ -18,6 +18,11 @@
   and **Slipstream: Show Practice Stats** (per practice folder and per project).
 - `slipstream.showTypingSpeed` hides it all.
 
+**Guidance where the ghost would be.** When there's nothing to type at the cursor, a hint says what to do
+next: the next change in this file (`◂ next change on line 42 · Alt+]`), or the next step, including
+the ones that aren't typing (create a file and its folder, move, delete, copy), or that everything is
+done. End of line only; never insertable. `slipstream.guidanceHints`.
+
 ## 0.2.0 (preview)
 
 **Portable practice repos.** A practice folder can be its own git repository: push it, clone it onto

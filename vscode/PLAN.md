@@ -324,6 +324,8 @@ Goal: show how fast the developer actually types, counting only real keystrokes 
 - The status bar, Steps view and completion notice show it, plus **Show Practice Stats** (a Markdown preview grouped by project). `slipstream.showTypingSpeed` and `slipstream.idleSeconds`.
 - Tests: 24 unit tests for classification, the meter and estimates; 4 for steps, commits and the report; 4 integration tests (keys counted, accepts not, Backspace is a correction while a paste and Delete Marked are not, and the estimate and report render).
 
+*Follow-up (owner request): guidance hints.* Actions like creating a file or folder have no ghost text, so when there's nothing to type at the cursor, the ghost's place shows a hint instead (`src/ghost/guidance.ts`). It names the next change in this file, else the next step by kind (create, noting a missing folder, move, delete, copy, another file to edit), else "all steps done". It's a decoration, not an inline completion, so Tab can't type it, and it only appears when the rest of the line is empty. Key names are per platform (`⌥]` / `Alt+]`). `slipstream.guidanceHints`. Tests: 3 unit, 2 integration.
+
 *Open questions (defaults taken):*
 - WPM, or characters per minute for code (code has short "words" and lots of symbols)? The plan shows WPM with CPM in the tooltip.
 - Should Backspace count towards speed (gross) or only towards accuracy (net)? The plan says net.

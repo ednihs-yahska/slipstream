@@ -195,6 +195,11 @@ count. Files in the practice folder that the project ignores (e.g. `dist/`) aren
 - **Strikethrough**: code the target no longer has. Delete it yourself, or bind
   `slipstream.deleteMarked` to a key.
 - **Status bar**: changes left; click to jump to the next one.
+- **A hint where the ghost would be**, when there's nothing to type at the cursor:
+  `◂ next change on line 42 · Alt+]`, or the next step, e.g.
+  `◂ next: create src/util/math.ts (and its folder src/util/) · Alt+Shift+] creates it`, a move, delete
+  or copy, or `◂ all steps done ✓`. It only appears at the end of a line, and Tab never types it. Turn it
+  off with `slipstream.guidanceHints`.
 
 Whitespace-only differences (indentation, spacing, blank lines) are ignored by default, so your formatter
 can't get in the way. Set `slipstream.whitespace` to `exact` to require every character. If the editor
@@ -223,6 +228,7 @@ put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
 | `slipstream.remoteFetchMinutes` | `10` | how often to fetch remote targets; `0` only at session start and on demand |
 | `slipstream.showTypingSpeed` | `true` | typing speed and time left in the status bar and Steps view |
 | `slipstream.idleSeconds` | `5` | pauses longer than this aren't counted as typing time |
+| `slipstream.guidanceHints` | `true` | with nothing to type at the cursor, show what to do next in the ghost's place |
 
 Errors and (at debug level) scan timings go to the **Slipstream** output channel.
 
