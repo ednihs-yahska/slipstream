@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeHunks } from '../../src/diff/hunks';
-import { filterWhitespace, ghostAt, lineCol, targetRange } from '../../src/diff/tolerance';
+import { filterWhitespace, ghostAt, lineCol, needsRoom, targetRange } from '../../src/diff/tolerance';
 
 const lenient = (real: string, target: string) => filterWhitespace(real, computeHunks(real, target));
 
@@ -38,10 +38,21 @@ describe('ghostAt', () => {
     expect(ghostAt(real, computeHunks(real, 'foo(1);\n'), real.length)).toMatchObject({ text: '(1);\n', replaceFrom: 3 });
   });
 
-  it('does not show a ghost after real (non-space) text that differs', () => {
+  it('keeps the ghost after a typo, remembering what was typed, so Tab can replace it', () => {
     const real = 'fox';
-    expect(ghostAt(real, lenient(real, 'foo(1);\n'), real.length)).toBeUndefined();
+    const g = ghostAt(real, lenient(real, 'foo(1);\n'), real.length);
+    expect(g).toMatchObject({ text: 'o(1);\n', replaceFrom: 2, mistyped: 'x' });
   });
+
+  it('keeps it after a different word too, but not across lines or after a rewrite', () => {
+    const word = 'const total';
+    expect(ghostAt(word, lenient(word, 'const sum = 1;\n'), word.length)).toMatchObject({ mistyped: 'total', replaceFrom: 6 });
+    const lines = 'a\nb';
+    expect(ghostAt(lines, computeHunks(lines, 'xyz\n'), lines.length)).toBeUndefined();
+    const long = 'q'.repeat(60);
+    expect(ghostAt(long, computeHunks(long, 'z\n'), long.length)).toBeUndefined();
+  });
+
 });
 
 describe('targetRange', () => {
@@ -70,5 +81,24 @@ describe('lineCol', () => {
   it('counts lines and columns', () => {
     expect(lineCol('ab\ncd\nef', 7)).toEqual({ line: 2, character: 1 });
     expect(lineCol('ab', 0)).toEqual({ line: 0, character: 0 });
+  });
+});
+
+describe('needsRoom', () => {
+  const ghostFor = (real: string, target: string, cursor: number) => ghostAt(real, computeHunks(real, target), cursor)!;
+
+  it('is needed for new lines inserted in front of code on the cursor line', () => {
+    const real = 'export function f() {}\n';
+    const g = ghostFor(real, 'export interface O {}\n\nexport function f() {}\n', 0);
+    expect(needsRoom(real, g, 0)).toBe(true);
+  });
+
+  it('is not needed on an empty line, at the end of a line, or for a mid-line insertion', () => {
+    const blank = '\nexport function f() {}\n';
+    expect(needsRoom(blank, ghostFor(blank, 'export interface O {}\n\nexport function f() {}\n', 0), 0)).toBe(false);
+    const eol = 'a();\n'; // the new line goes on the empty last line, where nothing follows
+    expect(needsRoom(eol, ghostFor(eol, 'a();\nb();\n', 5), 5)).toBe(false);
+    const mid = 'foo()\n';
+    expect(needsRoom(mid, ghostFor(mid, 'foo(a, b)\n', 4), 4)).toBe(false); // ")" follows, but the ghost is part of this line
   });
 });

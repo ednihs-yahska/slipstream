@@ -250,12 +250,12 @@
       {
         "command": "slipstream.acceptWord",
         "key": "tab",
-        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly && !suggestWidgetVisible"
+        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly"
       },
       {
         "command": "slipstream.acceptLine",
         "key": "shift+tab",
-        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly && !suggestWidgetVisible"
+        "when": "editorTextFocus && slipstream.ghostVisible && !editorReadonly"
       },
       {
         "command": "slipstream.nextChange",
