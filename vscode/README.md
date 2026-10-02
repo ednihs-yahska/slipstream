@@ -16,6 +16,9 @@ outdent as usual. There's deliberately no key to accept a whole block: the point
 
 No agent? **Replay any repository's git history** and retype it commit by commit.
 
+> **Pre-release.** Slipstream 0.3.0 is on the Marketplace's pre-release channel: on its page, choose
+> *Switch to Pre-Release Version*. Feedback and issues: <https://github.com/ednihs-yahska/slipstream/issues>.
+
 ## Practice modes
 
 **Slipstream: Choose Practice Mode…** (or the eye button in the Steps view):
