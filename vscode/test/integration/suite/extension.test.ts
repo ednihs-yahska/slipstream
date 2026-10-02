@@ -36,6 +36,24 @@ const lf = (text: string) => text.replace(/\r\n/g, '\n');
 const at = (editor: vscode.TextEditor, line: number, character: number) =>
   editor.document.offsetAt(new vscode.Position(line, character));
 
+/**
+ * Type as a user would (VS Code's `type` command: auto-indent, auto-closing pairs).
+ * `type` goes to whatever has keyboard focus — on the macOS CI runner something else
+ * held it and keystrokes silently went nowhere — so focus the editor first and fail
+ * loudly if a keystroke doesn't land.
+ */
+async function typeText(editor: vscode.TextEditor, text: string) {
+  await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+  await vscode.commands.executeCommand('workbench.action.closePanel');
+  await vscode.window.showTextDocument(editor.document, { viewColumn: editor.viewColumn, preserveFocus: false });
+  await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+  for (const ch of text) {
+    const before = editor.document.version;
+    await vscode.commands.executeCommand('type', { text: ch });
+    assert.ok(editor.document.version > before, `typing ${JSON.stringify(ch)} did not reach the editor (focus elsewhere?)`);
+  }
+}
+
 function placeCursor(editor: vscode.TextEditor, offset: number) {
   const pos = editor.document.positionAt(offset);
   editor.selection = new vscode.Selection(pos, pos);
@@ -797,8 +815,8 @@ describe('Slipstream', () => {
       placeCursor(editor, editor.document.getText().length);
       await vscode.commands.executeCommand('slipstream.nextChange'); // wraps to the new interface at the top
       // Typed at once, with no pause: the jump itself must have made room.
-      for (const ch of 'export interface GreetOptions {') await vscode.commands.executeCommand('type', { text: ch });
-      await vscode.commands.executeCommand('type', { text: '\n' }); // a real Enter: auto-indents
+      await typeText(editor, 'export interface GreetOptions {');
+      await typeText(editor, '\n'); // a real Enter: auto-indents
       const lines = lf(editor.document.getText()).split('\n');
       assert.strictEqual(lines[0], 'export interface GreetOptions {');
       // The existing function stays whole and unindented, below the new lines.
@@ -827,7 +845,7 @@ describe('Slipstream', () => {
     it('keeps the ghost, and Tab replaces the mistake', async () => {
       const editor = await open(practice('src/math.ts'), 'export ');
       placeCursor(editor, editor.document.getText().length);
-      await vscode.commands.executeCommand('type', { text: 'x' }); // expected "f"
+      await typeText(editor, 'x'); // expected "f"
       assert.ok((await ghostNow(editor))?.startsWith('function clamp'), 'the ghost is still offered');
       await vscode.commands.executeCommand('slipstream.acceptWord');
       assert.strictEqual(editor.document.lineAt(0).text, 'export function');
@@ -839,7 +857,7 @@ describe('Slipstream', () => {
       try {
         const editor = await open(practice('src/math.ts'), 'export ');
         placeCursor(editor, editor.document.getText().length);
-        await vscode.commands.executeCommand('type', { text: 'q' });
+        await typeText(editor, 'q');
         await eventually(async () => /"q" isn't what's next/.test(api().hint() ?? ''));
       } finally {
         await cfg.update('mode', undefined, vscode.ConfigurationTarget.Global);
