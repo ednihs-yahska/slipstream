@@ -2,6 +2,7 @@ import * as path from 'path';
 import { computeHunks } from '../diff/hunks';
 import { filterWhitespace } from '../diff/tolerance';
 import { isInside } from '../target/links';
+import { charsToType } from '../stats/estimate';
 import { definedSymbols, newSymbols, orderByDependencies } from './deps';
 import {
   FileContent,
@@ -36,6 +37,8 @@ export interface Step {
   reason?: string;
   /** Top-level names this step adds (from the target), e.g. ['GreetOptions', 'greet']. */
   symbols?: string[];
+  /** Characters still to type for this step, leading indentation excluded (0 for delete and copy). */
+  charsLeft?: number;
 }
 
 export interface StepInput {
@@ -100,7 +103,8 @@ export async function computeSteps(input: StepInput): Promise<Step[]> {
     usedD.add(d);
     usedC.add(c);
     const symbols = newSymbols(deletes[d].content.text, creates[c].content.text ?? '');
-    steps.push({ kind: 'rename', path: creates[c].rel, from: deletes[d].rel, ...(symbols.length ? { symbols } : {}) });
+    const charsLeft = insertedChars(input, deletes[d].content.text ?? '', creates[c].content.text ?? '');
+    steps.push({ kind: 'rename', path: creates[c].rel, from: deletes[d].rel, charsLeft, ...(symbols.length ? { symbols } : {}) });
   }
 
   creates.forEach((c, i) => {
@@ -108,7 +112,13 @@ export async function computeSteps(input: StepInput): Promise<Step[]> {
     if (shouldCopy(c.rel, c.content)) steps.push({ kind: 'copy', path: c.rel });
     else {
       const symbols = definedSymbols(c.content.text ?? '');
-      steps.push({ kind: 'create', path: c.rel, changes: lineCount(c.content.text ?? ''), ...(symbols.length ? { symbols } : {}) });
+      steps.push({
+        kind: 'create',
+        path: c.rel,
+        changes: lineCount(c.content.text ?? ''),
+        charsLeft: charsToType(c.content.text ?? ''),
+        ...(symbols.length ? { symbols } : {}),
+      });
     }
   });
   deletes.forEach((d, i) => {
@@ -138,7 +148,8 @@ function modifyStep(input: StepInput, rel: string, t: FileContent, p: FileConten
   const hunks = input.lenientWhitespace ? filterWhitespace(realLf, all) : all;
   if (hunks.length === 0) return undefined;
   const symbols = newSymbols(real, t.text);
-  return { kind: 'modify', path: rel, changes: hunks.length, ...(symbols.length ? { symbols } : {}) };
+  const charsLeft = hunks.reduce((n, h) => n + charsToType(h.insert), 0);
+  return { kind: 'modify', path: rel, changes: hunks.length, charsLeft, ...(symbols.length ? { symbols } : {}) };
 }
 
 function targetContent(input: StepInput, rel: string): Promise<FileContent | undefined> {
@@ -163,6 +174,14 @@ export function sortSteps(steps: Step[]): Step[] {
 /** Identity of a step for progress tracking: survives the change count going down. */
 export function stepKey(s: Step): string {
   return s.kind === 'rename' ? `rename:${s.from}→${s.path}` : `${s.kind === 'delete' ? 'delete' : 'file'}:${s.path}`;
+}
+
+/** Characters to type to turn `from` into `to` (the inserted side of the remaining hunks). */
+function insertedChars(input: StepInput, from: string, to: string): number {
+  const a = from.replace(/\r\n/g, '\n');
+  const all = computeHunks(a, to.replace(/\r\n/g, '\n'));
+  const hunks = input.lenientWhitespace ? filterWhitespace(a, all) : all;
+  return hunks.reduce((n, h) => n + charsToType(h.insert), 0);
 }
 
 function sameName(a: string, b: string): number {

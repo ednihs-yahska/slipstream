@@ -277,7 +277,7 @@ As built:
 - Workspace Trust: `untrustedWorkspaces.supported: false` with a description; `virtualWorkspaces: false`.
 - Tests: 12 unit tests against a local bare remote; 4 integration tests (clone and practise against a remote, follow a pushed commit, switch to and from a local checkout, clone a practice repo).
 
-**M7 — Typing speed and time estimates** *(planned: version 0.3.0)*
+**M7 — Typing speed and time estimates** ✅ *built — version 0.3.0*
 
 Goal: show how fast the developer actually types, counting only real keystrokes (never `Tab` / `Shift+Tab` accepts), and estimate how long the current session and the whole project will take at that speed.
 
@@ -316,7 +316,15 @@ Goal: show how fast the developer actually types, counting only real keystrokes 
 - A pure `speed.ts`: change classification, active-time accumulation with the idle cutoff, WPM, and the estimate. Unit-tested with synthetic change events and an injected clock: keystrokes, Enter with auto-indent, an auto-closed pair, a paste, a completion, undo and redo, a Tab accept, and a long pause.
 - Integration: typed edits count, `acceptWord` / `acceptLine` don't, and the status bar text is built from the stats.
 
-*Open questions:*
+*As built:*
+- `src/stats/speed.ts`: `classify` (one char, Enter with auto-indent including the two-line brace split, an auto-closed pair, a pure deletion as a correction; multi-cursor counts once; accepts, undo/redo and larger inserts excluded) and `SpeedMeter` (active time with the idle cutoff; current speed over the last minute of wall time, active gaps only). Indentation from the Tab key with no ghost showing is not counted (it's whitespace the editor generated, and "no tabs" was the requirement).
+- `src/stats/estimate.ts`: `charsToType`, `estimate` (Tab-filled share at a nominal 1,500 cpm), and formatting. The range is ±50% when it's a guess, ±20% with some data, and ±10% after 1,000 measured characters.
+- Steps carry `charsLeft`. Replays size later commits with `git diff --unified=0` added lines (`addedLines`, cached; works in bare remote clones; root commits diff against the empty tree).
+- Sessions keep a `SpeedMeter` per session, persisted in its stats (and `progress.json` when opted in). A personal profile (`slipstream.typingProfile`, global state) holds characters and active time across sessions. Delete Marked is flagged as an internal edit, so it isn't a correction.
+- The status bar, Steps view and completion notice show it, plus **Show Practice Stats** (a Markdown preview grouped by project). `slipstream.showTypingSpeed` and `slipstream.idleSeconds`.
+- Tests: 24 unit tests for classification, the meter and estimates; 4 for steps, commits and the report; 4 integration tests (keys counted, accepts not, Backspace is a correction while a paste and Delete Marked are not, and the estimate and report render).
+
+*Open questions (defaults taken):*
 - WPM, or characters per minute for code (code has short "words" and lots of symbols)? The plan shows WPM with CPM in the tooltip.
 - Should Backspace count towards speed (gross) or only towards accuracy (net)? The plan says net.
 - What is "the whole project"? The plan covers a replay range and all practice folders for a project. Typing an entire repository from scratch (an empty practice folder) is the same calculation over every file.

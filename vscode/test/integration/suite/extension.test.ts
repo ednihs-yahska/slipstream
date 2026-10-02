@@ -680,4 +680,71 @@ describe('Slipstream', () => {
       assert.strictEqual(readLink(dest)!.source, 'remote');
     });
   });
+
+  describe('M7: typing speed and time left', () => {
+    const proj = () => path.join(project(), 'speeddemo');
+    const prac = (...p: string[]) => path.join(proj(), '.slipstream/practice', ...p);
+    const session = () => api().sessions.list().find((x) => x.link.practiceRoot === prac());
+    const stats = () => session()!.stats;
+    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let editor: vscode.TextEditor;
+
+    before(async () => {
+      fs.mkdirSync(prac('.slipstream'), { recursive: true });
+      fs.writeFileSync(prac('.slipstream/link.json'), JSON.stringify({ target: '../..' }));
+      fs.writeFileSync(path.join(proj(), 'speed.ts'), 'export const speed = 1;\nexport const more = 2;\n');
+      fs.writeFileSync(prac('speed.ts'), '');
+      await eventually(async () => {
+        await api().sessions.refresh();
+        return !!session()?.scanned;
+      });
+      editor = await open(prac('speed.ts'));
+    });
+
+    it('counts real keystrokes', async () => {
+      const before = stats().keys ?? 0;
+      for (const ch of 'export') {
+        const end = editor.document.positionAt(editor.document.getText().length);
+        await editor.edit((b) => b.insert(end, ch));
+        await pause(20);
+      }
+      assert.strictEqual((stats().keys ?? 0) - before, 6);
+      assert.ok((stats().activeMs ?? 0) > 0);
+    });
+
+    it('does not count Tab or Shift+Tab', async () => {
+      const keys = stats().keys ?? 0;
+      const accepted = stats().accepted;
+      placeCursor(editor, editor.document.getText().length);
+      await vscode.commands.executeCommand('slipstream.acceptWord');
+      await vscode.commands.executeCommand('slipstream.acceptLine');
+      assert.strictEqual(stats().keys ?? 0, keys);
+      assert.ok(stats().accepted > accepted);
+    });
+
+    it('counts Backspace as a correction, and not Delete Marked or a paste', async () => {
+      const k = { ...stats() };
+      const end = () => editor.document.positionAt(editor.document.getText().length);
+      await editor.edit((b) => b.insert(end(), 'x'));
+      await editor.edit((b) => b.delete(new vscode.Range(end().translate(0, -1), end()))); // Backspace
+      assert.strictEqual((stats().corrections ?? 0) - (k.corrections ?? 0), 1);
+
+      await editor.edit((b) => b.insert(end(), 'const pasted = "a whole line";'));
+      assert.strictEqual((stats().keys ?? 0) - (k.keys ?? 0), 2); // the x and the Backspace, not the paste
+
+      placeCursor(editor, editor.document.getText().indexOf('const pasted'));
+      await vscode.commands.executeCommand('slipstream.deleteMarked');
+      assert.strictEqual((stats().corrections ?? 0) - (k.corrections ?? 0), 1);
+    });
+
+    it('estimates the time left and reports it', async () => {
+      await api().sessions.refresh();
+      const pace = session()!.pace;
+      assert.ok(pace.charsLeft > 0, JSON.stringify(pace));
+      assert.ok(pace.session.ms > 0);
+      const md = await vscode.commands.executeCommand<string>('slipstream.showStats', { show: false });
+      assert.ok(md.includes(prac()), md);
+      assert.ok(md.includes('characters left'), md);
+    });
+  });
 });

@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { targetUriFor } from '../target/gitTarget';
 import { TargetStore } from '../target/TargetStore';
+import { leftText, paceLines } from '../stats/report';
 import { readBlobAtRef } from './scan';
 import { Session, Sessions, summarize } from './Sessions';
 import { Step } from './StepModel';
@@ -57,7 +58,9 @@ export class StepsView implements vscode.TreeDataProvider<Node> {
           : link.pinned
             ? undefined
             : `→ ${path.basename(link.targetRoot)}`;
-      item.description = where ? `${where} · ${progress}` : progress;
+      const showSpeed = vscode.workspace.getConfiguration('slipstream').get<boolean>('showTypingSpeed', true);
+      const left = showSpeed && pending.length ? leftText(node.session.pace) : '';
+      item.description = [where, progress, left].filter(Boolean).join(' · ');
       item.tooltip = [
         `Practice: ${link.practiceRoot}`,
         link.source === 'remote'
@@ -66,6 +69,7 @@ export class StepsView implements vscode.TreeDataProvider<Node> {
         ...(subject ? [`Commit:   ${subject}`] : []),
         ...(plan ? [`Plan:     ${plan.title ?? '(untitled)'}, ${plan.entries.length} file${plan.entries.length === 1 ? '' : 's'}, from .slipstream/plan.md`] : []),
         ...(node.session.stats.typed + node.session.stats.accepted > 0 ? ['', summarize(node.session.stats)] : []),
+        ...(vscode.workspace.getConfiguration('slipstream').get<boolean>('showTypingSpeed', true) ? ['', ...paceLines(node.session.pace)] : []),
       ].join('\n');
       item.iconPath = new vscode.ThemeIcon(scanned && pending.length === 0 ? 'pass' : link.pinned ? 'git-commit' : link.source === 'remote' ? 'cloud' : 'mortar-board');
       item.contextValue = !link.pinned
@@ -87,6 +91,7 @@ export class StepsView implements vscode.TreeDataProvider<Node> {
     const lines = [
       ...(step.reason ? [`**Why:** ${step.reason}`] : []),
       ...(step.symbols?.length ? [`**Adds:** ${step.symbols.map((x) => `\`${x}\``).join(', ')}`] : []),
+      ...(!done && step.charsLeft ? [`**To type:** ${step.charsLeft.toLocaleString()} characters`] : []),
       tooltip(step, done),
     ];
     item.tooltip = new vscode.MarkdownString(lines.join('\n\n'));
