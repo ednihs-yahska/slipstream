@@ -94,6 +94,15 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     status.command = hunks.length === 0 ? 'slipstream.nextStep' : 'slipstream.nextChange';
     status.show();
     void noticeOtherProviders(context);
+    if (ghost) {
+      // In a practice file the next text is known: the autocomplete popup would cover the
+      // ghost (and take Tab), so close it whenever a Slipstream ghost is at the cursor.
+      await vscode.commands.executeCommand('hideSuggestWidget');
+      // The popup opens a few milliseconds after a keystroke, which can be after this refresh.
+      setTimeout(() => {
+        if (seq === refreshSeq) void vscode.commands.executeCommand('hideSuggestWidget');
+      }, 80);
+    }
     if (ghost && !hidden) await vscode.commands.executeCommand('editor.action.inlineSuggest.trigger');
     if (hidden) await vscode.commands.executeCommand('editor.action.inlineSuggest.hide');
   };
@@ -119,6 +128,7 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
   const accept = (pick: (ghost: string, textAfterCursor: string) => string, fallback: string) => async () => {
     const editor = vscode.window.activeTextEditor;
     let ghost = editor ? await ghostAtCursor(store, editor) : undefined;
+    await vscode.commands.executeCommand('hideSuggestWidget');
     // Tab before the refresh has made room: make it now.
     if (editor && ghost && (await makeRoom(editor, ghost))) ghost = await ghostAtCursor(store, editor);
     if (!editor || !ghost) {

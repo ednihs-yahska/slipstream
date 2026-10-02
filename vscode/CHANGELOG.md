@@ -29,6 +29,8 @@ The first published version, on the Marketplace's pre-release channel. It includ
 - A wrong letter used to make the ghost vanish. Now the mistake is struck through, the ghost stays,
   and Tab replaces the mistake with the right word; Backspace works as usual. In hint and delayed
   modes, a hint says what's wrong.
+- The autocomplete popup used to cover the ghost and take Tab. Now, whenever a Slipstream ghost is at the
+  cursor, Tab and Shift+Tab type the ghost even if the popup is open, and the popup is closed.
 
 **Guidance where the ghost would be.** When there's nothing to type at the cursor, a hint says what to do
 next: the next change in this file (`◂ next change on line 42 · Alt+]`), or the next step, including
