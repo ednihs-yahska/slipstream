@@ -27,6 +27,10 @@ import { cacheDirFor, parseRemote, Remote, resolvedCommit } from './remotes';
  * read from git, instead of the working tree. `"replay"` holds the commits of
  * a range replay and which one is current. A remote target always reads a
  * commit: `ref` if set, else the commit `remote.ref` currently points at.
+ *
+ * `"branch"` (a local target only) is the branch being practised. While it is
+ * the branch checked out in the target, the target is the working tree, as
+ * without one; otherwise it's the commit the branch points at now.
  */
 export const META_DIR = '.slipstream';
 export const LINK_FILE = path.join(META_DIR, 'link.json');
@@ -46,6 +50,8 @@ export interface Link {
   ref?: string;
   /** What `ref` was asked for, before resolving: a branch stays one session as it moves. */
   refLabel?: string;
+  /** The branch whose history is practised: a local link's `branch`, or the remote's `ref`. Undefined = HEAD. */
+  branch?: string;
   /** link.json pins a commit (a replay, or Start Practice from a commit's parent). */
   pinned?: boolean;
   replay?: Replay;
@@ -54,7 +60,7 @@ export interface Link {
   source: 'override' | 'path' | 'remote';
 }
 
-export type LinkExtras = { ref?: string; replay?: Replay; remote?: Remote };
+export type LinkExtras = { ref?: string; branch?: string; replay?: Replay; remote?: Remote };
 
 const cache = new Map<string, Link | null>();
 
@@ -116,19 +122,41 @@ export function readLink(practiceRoot: string): Link | undefined {
   const replay = (raw.replay as Replay | undefined) && Array.isArray((raw.replay as Replay).commits) && typeof (raw.replay as Replay).index === 'number'
     ? (raw.replay as Replay)
     : undefined;
+  const branch = typeof raw.branch === 'string' && raw.branch ? raw.branch : undefined;
   const base = { practiceRoot, ...(replay ? { replay } : {}), ...(remote ? { remote } : {}), ...(ref ? { pinned: true } : {}) };
 
-  if (override && fs.existsSync(override)) {
-    return { ...base, targetRoot: override, source: 'override', ...(ref ? { ref, refLabel: ref } : {}) };
-  }
-  if (committed && (!remote || (fs.existsSync(committed) && isCheckoutOf(committed, remote.url)))) {
-    return { ...base, targetRoot: committed, source: 'path', ...(ref ? { ref, refLabel: ref } : {}) };
-  }
+  const atPath = (targetRoot: string, source: 'override' | 'path'): Link => {
+    if (ref) return { ...base, targetRoot, source, ref, refLabel: ref, ...(branch ? { branch } : {}) };
+    if (!branch) return { ...base, targetRoot, source };
+    // Another branch than the one checked out: its tip, read from git.
+    if (checkedOutBranch(targetRoot) === branch) return { ...base, targetRoot, source, branch };
+    return { ...base, targetRoot, source, branch, ref: commitOf(targetRoot, branch) ?? branch, refLabel: branch };
+  };
+  if (override && fs.existsSync(override)) return atPath(override, 'override');
+  if (committed && (!remote || (fs.existsSync(committed) && isCheckoutOf(committed, remote.url)))) return atPath(committed, 'path');
   // Remote: always a commit. Resolve the label to a hash when the clone exists,
   // so caches keyed by ref never serve a branch's old contents.
   const dir = cacheDirFor(remote!);
   const label = ref ?? remote!.ref ?? 'HEAD';
-  return { ...base, targetRoot: dir, source: 'remote', ref: resolvedCommit(dir, label) ?? label, refLabel: label };
+  return { ...base, targetRoot: dir, source: 'remote', ref: resolvedCommit(dir, label) ?? label, refLabel: label, ...(remote!.ref ? { branch: remote!.ref } : {}) };
+}
+
+/** The checked-out branch of a working tree; undefined if detached or not a repository. */
+export function checkedOutBranch(dir: string): string | undefined {
+  return gitLine(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+}
+
+/** The commit a revision points at now, uncached: a local branch can move at any time. */
+function commitOf(dir: string, rev: string): string | undefined {
+  return gitLine(dir, ['rev-parse', '--verify', '--quiet', `${rev}^{commit}`]);
+}
+
+function gitLine(dir: string, args: string[]): string | undefined {
+  try {
+    return execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

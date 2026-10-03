@@ -40,15 +40,19 @@ Run **Slipstream: New Practice…** from any window. No project needs to be open
 
 1. **What to practise:** a local folder (the project open in this window, or any other), or a **git
    URL**, which Slipstream fetches into a cache, with an optional folder inside the repository.
-2. **Where to start:**
+2. **Which branch**, if it has more than one: its commits are the ones offered next, and its tip is
+   **Latest**. For a local folder, a branch other than the one checked out is read from git; the
+   checked-out one is the project as it is now, uncommitted changes included.
+3. **Where to start:**
    - **Type one commit:** the practice folder starts at its parent, and you retype exactly what it changed.
    - **From a commit to the latest:** it starts at that commit, and you retype everything since.
    - **Empty:** you retype the whole project.
-3. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
+4. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
    `slipstream.practiceHome`). It can be a git repository too; New Practice offers to make one.
 
-Open the practice folder and work through the **Steps** view. Your project is never touched: commits
-are read straight from git.
+When it's ready, the practice folder opens: in this window if nothing else is open in it, otherwise
+you choose **Open Here**, **Open in New Window** or **Add to Workspace**. Work through the **Steps**
+view. Your project is never touched: commits are read straight from git.
 
 ## Moving through history
 
@@ -59,6 +63,11 @@ typing towards is marked. Click any commit, or use **Older** / **Newer**, to mov
   what it changed. Your current files are committed first if the practice folder is a git repository;
   otherwise they go to the trash, after you confirm.
 - **Keep my files:** only the target changes; the steps show what's left from where you are.
+
+**Switch Branch…** (the branch button in the History view) practises another branch: your files stay,
+and Latest becomes that branch's tip. For a git-URL source it fetches first, so a branch pushed after
+the practice folder was made is offered too. New Practice also fetches a git URL it has cached before
+listing branches.
 
 **Latest** follows the project as it is now (or the remote's branch). For a git-URL source, **Fetch**
 updates the list.
@@ -259,6 +268,7 @@ Errors and (at debug level) scan timings go to the **Slipstream** output channel
 | Command | |
 |---|---|
 | Slipstream: New Practice… | a practice folder for a local folder or a git URL, from a commit or empty |
+| Slipstream: Switch Branch… | practise another branch of the source (fetched first for a git URL) |
 | Slipstream: Older Commit / Newer Commit | move through the History view (or click a commit there) |
 | Slipstream: Link an Existing Folder as Practice Folder… | link any folder to any target folder |
 | Slipstream: Set Up Agent… | agent instructions + Claude Code deny rules, previewed first |

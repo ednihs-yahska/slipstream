@@ -967,6 +967,70 @@ describe('Slipstream', () => {
       assert.deepStrictEqual(pending(dir), ['create b.ts', 'create c.ts', 'modify a.ts']);
     });
 
+    it('New Practice on a branch other than the one checked out, locally and from a git URL', async () => {
+      sh(src, 'checkout', '-q', '-b', 'feature');
+      fs.writeFileSync(path.join(src, 'f.ts'), 'f\n');
+      sh(src, 'add', '-A');
+      sh(src, 'commit', '-qm', 'four, on feature');
+      sh(src, 'checkout', '-q', 'main');
+      const bare2 = path.join(root, 'project-branches.git');
+      execFileSync('git', ['clone', '-q', '--bare', src, bare2], { stdio: 'pipe' });
+
+      const dir = path.join(project(), 'm8-branch');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'local', root: src },
+        branch: 'feature',
+        start: { kind: 'since', commit: c[2] },
+        location: dir,
+        show: false,
+      });
+      await ready(dir, () => pending(dir).length === 1);
+      assert.deepStrictEqual(pending(dir), ['create f.ts']); // feature's tip, though main is checked out
+      await open(path.join(dir, 'a.ts'));
+      const nodes = await api().history.getChildren();
+      const items = nodes.map((n) => api().history.getTreeItem(n));
+      assert.match(String(items[0].description), /feature/);
+      assert.strictEqual(items[1].label, 'four, on feature');
+
+      const remote = path.join(project(), 'm8-branch-remote');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'remote', remote: { url: bare2 } },
+        branch: 'feature',
+        start: { kind: 'since', commit: c[2] },
+        location: remote,
+        show: false,
+      });
+      assert.strictEqual(JSON.parse(fs.readFileSync(path.join(remote, '.slipstream/link.json'), 'utf8')).remote.ref, 'feature');
+      await ready(remote, () => pending(remote).length === 1);
+      assert.deepStrictEqual(pending(remote), ['create f.ts']);
+    });
+
+    it('switches a practice folder to a branch pushed after it was made, fetching it first', async () => {
+      const bare2 = path.join(root, 'project-branches.git');
+      const remote = path.join(project(), 'm8-branch-remote');
+      sh(src, 'checkout', '-q', '-b', 'later', 'main');
+      fs.writeFileSync(path.join(src, 'l.ts'), 'l\n');
+      sh(src, 'add', '-A');
+      sh(src, 'commit', '-qm', 'five, on later');
+      sh(src, 'checkout', '-q', 'main');
+      sh(src, 'push', '-q', bare2, 'later');
+
+      assert.strictEqual(await vscode.commands.executeCommand('slipstream.switchBranch', remote, 'later'), true);
+      const link = JSON.parse(fs.readFileSync(path.join(remote, '.slipstream/link.json'), 'utf8'));
+      assert.strictEqual(link.remote.ref, 'later');
+      assert.strictEqual(link.ref, undefined);
+      // Typed files are kept (f.ts isn't there yet); the target is now later's tip.
+      await ready(remote, () => pending(remote).includes('create l.ts'));
+      assert.deepStrictEqual(pending(remote), ['create l.ts']);
+
+      // A local source: back to the checked-out branch, the project as it is now.
+      const local2 = path.join(project(), 'm8-branch');
+      assert.strictEqual(await vscode.commands.executeCommand('slipstream.switchBranch', local2, 'main'), true);
+      await ready(local2, () => pending(local2).length === 0);
+      assert.strictEqual(JSON.parse(fs.readFileSync(path.join(local2, '.slipstream/link.json'), 'utf8')).branch, 'main');
+      assert.strictEqual(await vscode.commands.executeCommand('slipstream.switchBranch', local2, 'nope'), false);
+    });
+
     function sessionAtRef(dir: string): string | undefined {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
       return raw.ref;

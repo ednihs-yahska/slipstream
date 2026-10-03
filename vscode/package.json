@@ -126,6 +126,12 @@
         "category": "Slipstream"
       },
       {
+        "command": "slipstream.switchBranch",
+        "title": "Switch Branch…",
+        "category": "Slipstream",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "slipstream.fetchRemotes",
         "title": "Fetch Remote Targets",
         "category": "Slipstream",
@@ -517,6 +523,11 @@
           "command": "slipstream.fetchRemotes",
           "when": "view == slipstream.steps",
           "group": "3_remote@1"
+        },
+        {
+          "command": "slipstream.switchBranch",
+          "when": "view == slipstream.history",
+          "group": "navigation@0"
         },
         {
           "command": "slipstream.olderCommit",

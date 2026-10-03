@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Commit, recentCommits, resolveRev } from './git';
+import { Branch, Commit, recentCommits, resolveRev } from './git';
 
 /** Recent commits touching `dir`, or undefined (with an error shown) if there's no git history. */
 export async function history(dir: string): Promise<Commit[] | undefined> {
@@ -47,4 +47,19 @@ export async function pickCommit(
     void vscode.window.showErrorMessage(`"${rev}" is not a commit in this repository.`);
     return undefined;
   }
+}
+
+/** Undefined: there's only one branch (or none), nothing to ask. Null: cancelled. */
+export async function pickBranch(known: Branch[], currentIs: string, opts: { always?: boolean; selected?: string } = {}): Promise<Branch | undefined | null> {
+  if (known.length < (opts.always ? 1 : 2)) return undefined;
+  type Item = vscode.QuickPickItem & { branch: Branch };
+  const pick = await vscode.window.showQuickPick<Item>(
+    known.map((b) => ({
+      label: `$(git-branch) ${b.name}`,
+      description: [b.current ? currentIs : '', b.name === opts.selected ? 'practising now' : ''].filter(Boolean).join(' · '),
+      branch: b,
+    })),
+    { title: 'Slipstream: which branch?', placeHolder: 'Its commits are the ones you can pick from, and its tip is “Latest”' },
+  );
+  return pick ? pick.branch : null;
 }

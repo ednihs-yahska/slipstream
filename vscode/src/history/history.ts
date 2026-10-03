@@ -1,10 +1,12 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { log } from '../log';
-import { Commit, extractAt, neighbours, parentOf, recentCommits, resettableEntries, saveIfRepo } from '../practice/git';
+import { branches, Commit, extractAt, neighbours, parentOf, recentCommits, resettableEntries, saveIfRepo } from '../practice/git';
+import { pickBranch } from '../practice/pickers';
 import { pinnedRef } from '../practice/replay';
 import { Session, Sessions } from '../steps/Sessions';
-import { readLink, updateLink } from '../target/links';
+import { clearLinkCache, readLink, updateLink } from '../target/links';
+import { fetchRemote } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
 
 /**
@@ -38,8 +40,9 @@ export class HistoryView implements vscode.TreeDataProvider<Node> {
 
   async commits(session: Session): Promise<Commit[]> {
     const link = session.link;
-    const branch = link.source === 'remote' ? (link.remote?.ref ?? 'HEAD') : 'HEAD';
-    const key = `${link.targetRoot}|${branch}|${link.source === 'remote' ? link.ref : ''}`;
+    const branch = link.branch ?? 'HEAD';
+    // The resolved commit is in the key whenever a branch is read from git, so a moved branch is re-read.
+    const key = `${link.targetRoot}|${branch}|${link.pinned ? '' : (link.ref ?? '')}`;
     const hit = this.cache.get(link.practiceRoot);
     if (hit?.key === key) return hit.commits;
     const commits = await recentCommits(link.targetRoot, 200, branch).catch(() => [] as Commit[]);
@@ -60,7 +63,15 @@ export class HistoryView implements vscode.TreeDataProvider<Node> {
     if (node.type === 'latest') {
       const here = !pinned;
       const item = new vscode.TreeItem(here ? 'Latest  (typing towards this)' : 'Latest');
-      item.description = node.session.link.source === 'remote' ? `${node.session.link.remote?.ref ?? 'default branch'} on the remote` : 'the project as it is now';
+      const { link } = node.session;
+      item.description =
+        link.source === 'remote'
+          ? `${link.branch ?? 'default branch'} on the remote`
+          : link.branch && !link.pinned && link.ref
+            ? `${link.branch}, as last committed`
+            : link.branch
+              ? `${link.branch}, the project as it is now`
+              : 'the project as it is now';
       item.iconPath = new vscode.ThemeIcon(here ? 'circle-filled' : 'circle-outline');
       item.command = { title: 'Go here', command: 'slipstream.goToCommit', arguments: [root, 'latest'] };
       item.contextValue = 'latest';
@@ -123,6 +134,50 @@ export async function goToCommit(store: TargetStore, sessions: Sessions, practic
     }
   }
   updateLink(practiceRoot, { ref: target, replay: undefined });
+  return finish(store, sessions);
+}
+
+/**
+ * Practise another branch: a git-URL source is fetched first, so branches
+ * pushed since are offered too. Your files stay as they are; the target moves
+ * to the branch's Latest, and the History view lists its commits.
+ */
+export async function switchBranch(store: TargetStore, sessions: Sessions, practiceRoot: string, branch?: string): Promise<boolean> {
+  let link = readLink(practiceRoot);
+  if (!link) return false;
+  if (link.source === 'remote' && link.remote) {
+    const remote = link.remote;
+    try {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Fetching ${remote.url}` }, () => fetchRemote(remote));
+    } catch (e) {
+      log.warn(`Fetching ${remote.url} failed; offering the cached branches (${(e as Error).message.split('\n')[0]})`);
+    }
+    clearLinkCache();
+    link = readLink(practiceRoot)!;
+  }
+  const known = await branches(link.targetRoot).catch(() => []);
+  if (branch === undefined) {
+    const pick = await pickBranch(known, link.source === 'remote' ? 'default' : 'checked out', {
+      always: true,
+      selected: link.branch ?? known.find((b) => b.current)?.name,
+    });
+    if (!pick) {
+      if (pick === undefined) void vscode.window.showInformationMessage('No branches found for this practice folder.');
+      return false;
+    }
+    branch = pick.name;
+  } else if (!known.some((b) => b.name === branch)) {
+    void vscode.window.showErrorMessage(`There's no branch "${branch}" here.`);
+    return false;
+  }
+
+  // The remote's ref names the branch on any machine (origin/x is x there); a local link also records it as `branch`.
+  const onRemote = link.remote ? { ...link.remote, ref: branch.replace(/^origin\//, '') } : undefined;
+  updateLink(practiceRoot, {
+    ...(link.source === 'remote' ? { remote: { ...link.remote!, ref: branch } } : { branch, ...(onRemote ? { remote: onRemote } : {}) }),
+    ref: undefined,
+    replay: undefined,
+  });
   return finish(store, sessions);
 }
 
