@@ -10,7 +10,7 @@ import { initLog } from './log';
 import { leftText, speedText, statsMarkdown } from './stats/report';
 import { noticeOtherProviders } from './ghost/coexistence';
 import { applyMine, DivergenceActions, openInTarget } from './ghost/Divergence';
-import { needsRoom, Ghost } from './diff/tolerance';
+import { leadingBreak, needsRoom, Ghost } from './diff/tolerance';
 import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextProvider';
 import { guidanceText } from './ghost/guidance';
 import { hintFor } from './ghost/hint';
@@ -161,6 +161,15 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     // typing straight after the jump must already be on a line of their own.
     const ghost = await ghostAtCursor(store, editor);
     if (ghost) await makeRoom(editor, ghost);
+    // A change that starts at the end of a line opens with a line break: take the cursor to its first line of code.
+    const at = editor.document.offsetAt(editor.selection.active);
+    const lead = ghost && leadingBreak(ghost, at);
+    if (lead) {
+      sessions.expectInternal(editor.document.uri); // the jump typed it, not you
+      await editor.edit((b) => b.insert(editor.document.positionAt(at), lead), { undoStopBefore: true, undoStopAfter: false });
+      const end = editor.document.positionAt(at + lead.length);
+      editor.selection = new vscode.Selection(end, end);
+    }
     await refresh();
   };
 

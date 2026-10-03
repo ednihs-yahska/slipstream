@@ -4,6 +4,9 @@
 
 **Practice folders of their own, and moving through history.**
 
+- Listed as **Slipstream Review**. The extension ID stays `EdnihsYahska.slipstream-practice`, so
+  installs of 0.3.0 update in place.
+
 - **New Practice…** replaces Start Practice and works from any window. Practise a **local folder** or a
   **git URL** (fetched into a cache, optionally a folder inside the repository), starting from **one
   commit** (you retype exactly that commit), **a commit to the latest**, or **empty** (the whole
@@ -19,6 +22,8 @@
   later appear. New Practice fetches a cached git URL before listing its branches.
 - Replays default to `~/Slipstream/<project>-replay`. Set Up Agent offers deny rules only for older,
   in-project practice folders. `slipstream.defaultPracticeDir` is replaced by `slipstream.practiceHome`.
+- **Next / Previous Change** (`Alt+]` / `Alt+[`) lands on the change's first line of code: when a
+  change starts at the end of a line, the line break and indentation are typed for you.
 - Fixed: starting from a commit of a **git-URL** source failed, because extracting a commit from the
   cached bare clone asked git for a working tree it doesn't have.
 

@@ -1,4 +1,4 @@
-# Slipstream Practice
+# Slipstream Review
 
 **Draft behind your AI agent.** The agent writes the code in your project as usual; you retype its
 changes yourself in a **practice folder**, with what's left to type shown as ghost text. You end up with
@@ -8,7 +8,7 @@ the same code, but you wrote it, and you understand it.
 |---|---|
 | `Tab` | accept the next word (at end of line: the line break + indent) |
 | `Shift+Tab` | accept the rest of the line (at end of line: the whole next line) |
-| `Alt+]` / `Alt+[` | jump to the next / previous change in the file |
+| `Alt+]` / `Alt+[` | jump to the next / previous change in the file (past the line break, when the change starts on a new line) |
 | `Alt+Shift+]` | go to the next step (file) |
 
 `Tab` and `Shift+Tab` only take over while a Slipstream ghost is showing; otherwise they indent and

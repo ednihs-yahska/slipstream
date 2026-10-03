@@ -68,6 +68,20 @@ function stripWs(s: string): string {
 }
 
 /**
+ * The line breaks (and the indentation after them) a jump types for you: when
+ * a change starts at the end of a line, its ghost opens with a line break, and
+ * the cursor belongs at the start of the first line of code. Undefined if the
+ * ghost doesn't open with a line break, has nothing but whitespace, or isn't a
+ * pure insertion at the cursor.
+ */
+export function leadingBreak(ghost: Ghost, cursor: number): string | undefined {
+  const h = ghost.hunk;
+  if (ghost.mistyped !== undefined || h.start !== cursor || h.end !== h.start) return undefined;
+  const lead = /^(?:[ \t]*\r?\n)+[ \t]*/.exec(ghost.text)?.[0];
+  return lead && ghost.text.length > lead.length ? lead : undefined;
+}
+
+/**
  * VS Code draws a multi-line ghost as virtual lines: they don't push the code
  * after the cursor down. So when a ghost inserts whole lines (it ends with a
  * line break) in front of code on the cursor's line, typing it glues the new
