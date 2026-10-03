@@ -76,7 +76,8 @@ export async function setUpAgent(sessions: Sessions, args: SetupArgs = {}) {
 
 /** Practice folders inside this project: the defaults plus any that exist. */
 function practiceFolders(sessions: Sessions, projectRoot: string): string[] {
-  const rels = new Set([`${META_DIR}/practice`, `${META_DIR}/replay`]);
+  // Practice folders are created outside projects now; only older, in-project ones need keeping out.
+  const rels = new Set<string>();
   for (const s of sessions.list()) {
     const root = s.link.practiceRoot;
     if (s.link.targetRoot === projectRoot && root !== projectRoot && isInside(root, projectRoot)) {
@@ -99,6 +100,7 @@ async function ask(folders: string[]): Promise<SetupChoice | undefined> {
   );
   if (!where) return undefined;
 
+  if (folders.length === 0) return { instructions: where.file };
   const keepOut = await vscode.window.showQuickPick(
     [
       { label: 'Yes, keep Claude Code out', description: 'recommended', detail: `Deny reading/editing ${folders.join(', ')} in .claude/settings.local.json (personal, not committed).`, yes: true },

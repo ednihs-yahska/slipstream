@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { isInside, Link, META_DIR, readLink, updateLink, writeLink } from '../target/links';
@@ -211,10 +212,12 @@ async function start(context: vscode.ExtensionContext, store: TargetStore, targe
 
 /** `.slipstream/replay` inside the project, or anywhere; offers to clear a folder that's in use. */
 async function pickLocation(targetRoot: string): Promise<string | undefined> {
-  const inside = path.join(targetRoot, META_DIR, 'replay');
+  // Practice folders live outside the project: ~/Slipstream/<project>-replay by default.
+  const home = vscode.workspace.getConfiguration('slipstream').get<string>('practiceHome', '~/Slipstream');
+  const dflt = path.join(home.startsWith('~') ? path.join(os.homedir(), home.slice(1)) : home, `${path.basename(targetRoot)}-replay`);
   const where = await vscode.window.showQuickPick(
     [
-      { label: '$(folder) Inside this project', description: path.relative(targetRoot, inside), dir: inside },
+      { label: `$(folder) ${dflt}`, description: 'a practice folder of its own', dir: dflt },
       { label: '$(folder-opened) Somewhere else…', description: 'pick or create any folder', dir: undefined },
     ],
     { title: 'Slipstream: where do you want to type the replay?' },
@@ -224,8 +227,8 @@ async function pickLocation(targetRoot: string): Promise<string | undefined> {
     where.dir ??
     (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Replay here' }))?.[0]?.fsPath;
   if (!dir) return undefined;
-  if (dir === targetRoot || isInside(targetRoot, dir)) {
-    void vscode.window.showErrorMessage('The replay folder must not be the project or contain it.');
+  if (dir === targetRoot || isInside(targetRoot, dir) || isInside(dir, targetRoot)) {
+    void vscode.window.showErrorMessage('Pick a folder outside the project: practice folders are kept separate from it.');
     return undefined;
   }
   if (fs.existsSync(dir) && hasUserFiles(dir)) {

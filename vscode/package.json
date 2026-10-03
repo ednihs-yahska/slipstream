@@ -2,7 +2,7 @@
   "name": "slipstream-practice",
   "displayName": "Slipstream Practice",
   "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "publisher": "EdnihsYahska",
   "license": "MIT",
   "repository": {
@@ -58,9 +58,33 @@
         "icon": "$(graph)"
       },
       {
-        "command": "slipstream.startPractice",
-        "title": "Start Practice\u2026",
+        "command": "slipstream.newPractice",
+        "title": "New Practice\u2026",
+        "category": "Slipstream",
+        "icon": "$(add)"
+      },
+      {
+        "command": "slipstream.goToCommit",
+        "title": "Go to Commit",
         "category": "Slipstream"
+      },
+      {
+        "command": "slipstream.olderCommit",
+        "title": "Older Commit",
+        "category": "Slipstream",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "slipstream.newerCommit",
+        "title": "Newer Commit",
+        "category": "Slipstream",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "slipstream.history.refresh",
+        "title": "Refresh History",
+        "category": "Slipstream",
+        "icon": "$(refresh)"
       },
       {
         "command": "slipstream.linkPracticeFolder",
@@ -276,11 +300,6 @@
     "configuration": {
       "title": "Slipstream",
       "properties": {
-        "slipstream.defaultPracticeDir": {
-          "type": "string",
-          "default": ".slipstream/practice",
-          "description": "Where \"Start Practice\" puts the practice folder when you choose \"Inside this project\" (relative to the project)."
-        },
         "slipstream.maxGhostLines": {
           "type": "number",
           "default": 30,
@@ -362,6 +381,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "When there's nothing to type at the cursor, show what to do next in the ghost text's place: the next change in this file, or the next step (create a file and its folder, move, delete, copy). Only at the end of a line, and never insertable."
+        },
+        "slipstream.practiceHome": {
+          "type": "string",
+          "default": "~/Slipstream",
+          "markdownDescription": "Where **New Practice** creates practice folders (one per project, e.g. `~/Slipstream/my-app`). Practice folders are kept outside projects."
         }
       }
     },
@@ -380,13 +404,22 @@
           "id": "slipstream.steps",
           "name": "Steps",
           "icon": "media/steps.svg"
+        },
+        {
+          "id": "slipstream.history",
+          "name": "History",
+          "icon": "media/steps.svg"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "slipstream.steps",
-        "contents": "No practice folder in this window yet.\n[Start Practice](command:slipstream.startPractice)\n[Replay a Commit](command:slipstream.replayCommit)\nThe agent works in your project; you retype its changes in a practice folder. Or retype commits from this repo's history.\n[Link an Existing Folder](command:slipstream.linkPracticeFolder) \u00b7 [Replay a Range of Commits](command:slipstream.replayRange)"
+        "contents": "No practice folder in this window yet.\n[New Practice](command:slipstream.newPractice)\nPractise a local project or a git URL, in a folder of its own: a commit, everything since a commit, or the whole project.\n[Clone a Practice Repository](command:slipstream.clonePracticeRepo) \u00b7 [Link an Existing Folder](command:slipstream.linkPracticeFolder)"
+      },
+      {
+        "view": "slipstream.history",
+        "contents": "Open a practice folder to see its source's commits here."
       }
     ],
     "menus": {
@@ -418,6 +451,10 @@
         {
           "command": "slipstream.steps.openProjectFile",
           "when": "false"
+        },
+        {
+          "command": "slipstream.goToCommit",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -442,7 +479,7 @@
           "group": "navigation@2"
         },
         {
-          "command": "slipstream.startPractice",
+          "command": "slipstream.newPractice",
           "when": "view == slipstream.steps",
           "group": "1_practice@1"
         },
@@ -480,6 +517,26 @@
           "command": "slipstream.fetchRemotes",
           "when": "view == slipstream.steps",
           "group": "3_remote@1"
+        },
+        {
+          "command": "slipstream.olderCommit",
+          "when": "view == slipstream.history",
+          "group": "navigation@1"
+        },
+        {
+          "command": "slipstream.newerCommit",
+          "when": "view == slipstream.history",
+          "group": "navigation@2"
+        },
+        {
+          "command": "slipstream.fetchRemotes",
+          "when": "view == slipstream.history",
+          "group": "navigation@3"
+        },
+        {
+          "command": "slipstream.history.refresh",
+          "when": "view == slipstream.history",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
