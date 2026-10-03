@@ -1075,6 +1075,41 @@ describe('Slipstream', () => {
       assert.strictEqual(sh(dir, 'log', '--format=%s'), 'one'); // still only the first
     });
 
+    it('Alt+] follows the commit\'s edit order: what a change uses comes first, even further down the file', async function () {
+      this.timeout(60000);
+      const repo = path.join(root, 'order');
+      fs.mkdirSync(repo);
+      sh(repo, 'init', '-q', '-b', 'main');
+      fs.writeFileSync(path.join(repo, 'a.ts'), 'export function main() {\n  return 0;\n}\n');
+      sh(repo, 'add', '-A');
+      sh(repo, 'commit', '-qm', 'main');
+      fs.writeFileSync(path.join(repo, 'a.ts'), 'export function main() {\n  return helper();\n}\n\nfunction helper() {\n  return 1;\n}\n');
+      sh(repo, 'add', '-A');
+      sh(repo, 'commit', '-qm', 'helper');
+      const commit = sh(repo, 'rev-parse', 'HEAD');
+
+      const dir = path.join(project(), 'm9-order');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'local', root: repo },
+        start: { kind: 'commit', commit },
+        location: dir,
+        show: false,
+      });
+      await ready(dir, () => pending(dir).join() === 'modify a.ts');
+      const editor = await open(path.join(dir, 'a.ts'));
+      placeCursor(editor, 0);
+      await vscode.commands.executeCommand('slipstream.nextChange');
+      // helper() is defined below main(), but main() now uses it: helper first.
+      const active = vscode.window.activeTextEditor!;
+      assert.ok(active.selection.active.line >= 3, `at line ${active.selection.active.line}`);
+      assert.strictEqual(active.document.uri.fsPath, path.join(dir, 'a.ts'));
+
+      // Typed it: next is the use in main().
+      await active.edit((b) => b.replace(new vscode.Range(new vscode.Position(0, 0), active.document.lineAt(active.document.lineCount - 1).range.end), 'export function main() {\n  return 0;\n}\n\nfunction helper() {\n  return 1;\n}\n'));
+      await vscode.commands.executeCommand('slipstream.nextChange');
+      assert.strictEqual(vscode.window.activeTextEditor!.selection.active.line, 1);
+    });
+
     function sessionAtRef(dir: string): string | undefined {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
       return raw.ref;

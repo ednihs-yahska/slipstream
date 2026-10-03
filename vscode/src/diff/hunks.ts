@@ -20,9 +20,26 @@ function tokens(s: string): number {
 const MIN_WORD_OVERLAP = 0.5;
 
 export function computeHunks(real: string, target: string): Hunk[] {
-  return group(unanchorTrivialLines(diffLines(real, target)), 0).flatMap((block) =>
-    refine(real, block).map((h) => slideToLineStart(real, h)),
-  );
+  const parts = diffLines(real, target);
+  const anchored = group(parts, 0);
+  return group(unanchorTrivialLines(parts), 0)
+    .flatMap((block) => {
+      // Merging across a trivial line is only needed when the pieces it separates pair badly. When
+      // every piece is clean (an insertion, a deletion, or a well-matched edit), keep them apart:
+      // "use helper() here" and "add helper() below" stay two changes, typeable in either order.
+      const end = block.start + block.removed.length;
+      const pieces = anchored.filter((b) => b.start >= block.start && b.start <= end);
+      return pieces.length > 1 && pieces.every(wellMatched) ? pieces : [block];
+    })
+    .flatMap((block) => refine(real, block).map((h) => slideToLineStart(real, h)));
+}
+
+/** A block that is an insertion, a deletion, or an edit that keeps enough of what was there. */
+function wellMatched({ removed, added }: Block): boolean {
+  if (!removed || !added) return true;
+  const words = diffWordsWithSpace(removed, added);
+  const kept = words.filter((w) => !w.added && !w.removed).reduce((n, w) => n + tokens(w.value), 0);
+  return kept >= MIN_WORD_OVERLAP * tokens(removed);
 }
 
 /**

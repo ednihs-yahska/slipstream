@@ -72,6 +72,16 @@ describe('computeHunks', () => {
     expect(apply(real, hunks)).toBe(target);
   });
 
+  it('keeps an edit and a new block below it apart when each pairs cleanly across the brace', () => {
+    const real = 'export function main() {\n  return 0;\n}\n';
+    const target = 'export function main() {\n  return helper();\n}\n\nfunction helper() {\n  return 1;\n}\n';
+    const hunks = computeHunks(real, target);
+    expect(hunks).toHaveLength(2);
+    expect(hunks[0]).toMatchObject({ insert: 'helper()' });
+    expect(hunks[1].insert).toContain('function helper() {');
+    expect(hunks[1].start).toBe(real.length);
+  });
+
   it('shows a rewritten line as one replacement, not word confetti', () => {
     const real = 'const total = items.length;\n';
     const target = 'let sum = values.reduce((a, b) => a + b, 0);\n';

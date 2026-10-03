@@ -8,7 +8,7 @@ the same code, but you wrote it, and you understand it.
 |---|---|
 | `Tab` | accept the next word (at end of line: the line break + indent) |
 | `Shift+Tab` | accept the rest of the line (at end of line: the whole next line) |
-| `Alt+]` / `Alt+[` | jump to the next / previous change in the file (past the line break, when the change starts on a new line) |
+| `Alt+]` / `Alt+[` | jump to the next / previous change (past the line break, when the change starts on a new line). While typing a commit, `Alt+]` goes to the next edit in dependency order, in any file |
 | `Alt+Shift+]` | go to the next step (file) |
 
 `Tab` and `Shift+Tab` only take over while a Slipstream ghost is showing; otherwise they indent and
@@ -58,6 +58,20 @@ Run **Slipstream: New Practice…** from any window. No project needs to be open
 When it's ready, the practice folder opens: in this window if nothing else is open in it, otherwise
 you choose **Open Here**, **Open in New Window** or **Add to Workspace**. Work through the **Steps**
 view. Your project is never touched: commits are read straight from git.
+
+## The order of edits in a commit
+
+While you type a commit (one commit, commit by commit, or a replay), **Alt+]** goes to the next edit
+in **dependency order**, not top to bottom: an edit comes after the edits that define what it uses.
+If a commit changes `main()` to call a new `helper()` added further down, Alt+] takes you to
+`helper()` first. It moves across files, creating a new file when the next edit is in one, and puts
+you at the edit, ready to type. If you're already at the next edit, it goes to the one after.
+
+The order comes from your language extensions: the commit's version of the project is extracted
+once into a cache folder, its symbols are listed, and go-to-definition confirms which edit defines
+what another uses. Without a language extension for a file, names are matched as text. Ties keep
+the file order of the Steps view, then position. Set `slipstream.editOrder` to `file` to make
+Alt+] go to the next change in the current file instead.
 
 ## Moving through history
 
@@ -256,6 +270,7 @@ put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
 |---|---|---|
 | `slipstream.whitespace` | `lenient` | `lenient` ignores whitespace-only differences; `exact` requires every character |
 | `slipstream.maxGhostLines` | `30` | the most lines of ghost text shown at once |
+| `slipstream.editOrder` | `symbols` | `symbols`: Alt+] follows the commit's dependency order; `file`: the next change in this file |
 | `slipstream.practiceHome` | `~/Slipstream` | where New Practice creates practice folders |
 | `slipstream.hideFromSearch` | `true` | older in-project practice folders: hide them from Find in Files and Quick Open |
 | `slipstream.mode` | `ghost` | `ghost`, `delayed` or `hint` (see Practice modes) |

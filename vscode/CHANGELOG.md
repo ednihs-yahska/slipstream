@@ -14,6 +14,12 @@
   tip is Latest. The new folder opens in the same window when that window is empty, or **Open Here**
   when it isn't. Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
   (`slipstream.practiceHome`); the in-project option is gone.
+- **Edits in dependency order:** while typing a commit, Alt+] goes to the next edit in the order the
+  commit's symbols need, across files, creating files as needed. The order comes from your language
+  extensions (document symbols and go-to-definition, run on the commit extracted into a cache), or
+  from names without one. `slipstream.editOrder: "file"` restores the old behaviour.
+- The diff keeps an edit and a new block apart across a closing brace when both pair cleanly
+  (`return 0` → `return helper()` above a new `helper()`), so each can be typed on its own.
 - **Commit by commit:** a New Practice start that replays the history from the first commit (or one you
   pick) to the latest. When a commit is typed, **Commit** commits your work with the original message,
   **Edit Message…** lets you change it, and **Next Without Committing** skips it; each moves on.

@@ -364,6 +364,19 @@
           "maximum": 60,
           "markdownDescription": "In `delayed` mode, how long you're stuck at a spot before the code appears. Typing a correct character restarts the clock."
         },
+        "slipstream.editOrder": {
+          "type": "string",
+          "enum": [
+            "symbols",
+            "file"
+          ],
+          "default": "symbols",
+          "enumDescriptions": [
+            "While typing a commit, Alt+] goes to the next edit in dependency order, in any file: what an edit uses comes before it (found with your language extensions, or by name without one).",
+            "Alt+] goes to the next change in the current file."
+          ],
+          "description": "What Alt+] (Next Change) goes to while you type a commit."
+        },
         "slipstream.stepOrder": {
           "type": "string",
           "enum": [
