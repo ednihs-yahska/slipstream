@@ -7,6 +7,7 @@ import { log } from '../log';
 import { Sessions } from '../steps/Sessions';
 import { LOCAL_LINK_FILE, readLink, writeLocalOverride } from '../target/links';
 import { TargetStore } from '../target/TargetStore';
+import { ignoreLocalLink } from './git';
 import { remember } from './practice';
 
 const run = promisify(execFile);
@@ -113,13 +114,7 @@ export async function storeProgress(sessions: Sessions, practiceRoot?: string) {
 
 /** link.local.json is per machine: keep it out of the practice repository if it is one. */
 async function ensureIgnored(practiceRoot: string) {
-  if (!fs.existsSync(path.join(practiceRoot, '.git'))) return;
-  const ignore = path.join(practiceRoot, '.gitignore');
-  const line = LOCAL_LINK_FILE.split(path.sep).join('/');
-  const current = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
-  if (!current.split(/\r?\n/).includes(line)) {
-    fs.appendFileSync(ignore, `${current && !current.endsWith('\n') ? '\n' : ''}# Slipstream: per-machine\n${line}\n`);
-  }
+  if (fs.existsSync(path.join(practiceRoot, '.git'))) ignoreLocalLink(practiceRoot);
 }
 
 async function pickPracticeFolder(): Promise<string | undefined> {

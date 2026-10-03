@@ -165,13 +165,28 @@ export async function parentOf(dir: string, rev: string): Promise<string | undef
  */
 export async function commitsInRange(dir: string, from: string, to: string): Promise<string[]> {
   const fromHash = await resolveRev(dir, from);
-  const { stdout } = await run('git', ['-C', dir, 'rev-list', '--reverse', '--first-parent', to, '--', '.'], {
+  // From the repository root with the folder as a pathspec, as recentCommits: a bare clone has no "." to stand in.
+  const { top, prefix } = await repoPaths(dir);
+  const { stdout } = await run('git', ['-C', top, 'rev-list', '--reverse', '--first-parent', to, '--', prefix || '.'], {
     maxBuffer: 64 * 1024 * 1024,
   });
   const chain = stdout.split('\n').filter(Boolean);
   const start = chain.indexOf(fromHash);
   if (start < 0) throw new Error(`${from} is not on the first-parent history of ${to} (or doesn't touch this folder).`);
   return chain.slice(start);
+}
+
+/** The oldest commit touching the folder, on the first-parent history of `to`. */
+export async function firstCommit(dir: string, to = 'HEAD'): Promise<string | undefined> {
+  const { top, prefix } = await repoPaths(dir);
+  const { stdout } = await run('git', ['-C', top, 'rev-list', '--reverse', '--first-parent', to, '--', prefix || '.'], { maxBuffer: 64 * 1024 * 1024 });
+  return stdout.split('\n').find(Boolean);
+}
+
+/** A commit's whole message, subject and body. */
+export async function messageOf(dir: string, rev: string): Promise<string> {
+  const { stdout } = await run('git', ['-C', dir, 'log', '-1', '--format=%B', rev]);
+  return stdout.trim();
 }
 
 /** One-line subject of a commit. */
@@ -223,19 +238,27 @@ export async function originOf(dir: string): Promise<{ url: string; ref?: string
 }
 
 /**
- * Make a practice folder its own git repository: `git init`, a .gitignore for
+ * Keep the per-machine link.local.json out of a practice repository. The rule
+ * lives in `.slipstream/.gitignore`, not at the top: a top-level .gitignore is
+ * a practice file like any other, and would show up as a step ("delete
+ * .gitignore") whenever the project has none.
+ */
+export function ignoreLocalLink(practiceRoot: string) {
+  const ignore = path.join(practiceRoot, META_DIR, '.gitignore');
+  const current = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+  if (current.split(/\r?\n/).includes('link.local.json')) return;
+  fs.mkdirSync(path.dirname(ignore), { recursive: true });
+  fs.appendFileSync(ignore, `${current && !current.endsWith('\n') ? '\n' : ''}# Slipstream: per-machine\nlink.local.json\n`);
+}
+
+/**
+ * Make a practice folder its own git repository: `git init`, an ignore rule for
  * the per-machine files, and a first commit (skipped, not failed, if git has
  * no user identity configured). Returns whether it committed.
  */
 export async function initPracticeRepo(dir: string, message: string): Promise<{ committed: boolean }> {
   await run('git', ['-C', dir, 'init', '-q', '-b', 'main']);
-  const ignore = path.join(dir, '.gitignore');
-  const lines = ['.slipstream/link.local.json'];
-  const current = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
-  const missing = lines.filter((l) => !current.split(/\r?\n/).includes(l));
-  if (missing.length) {
-    fs.appendFileSync(ignore, `${current && !current.endsWith('\n') ? '\n' : ''}# Slipstream: per-machine\n${missing.join('\n')}\n`);
-  }
+  ignoreLocalLink(dir);
   await run('git', ['-C', dir, 'add', '-A']);
   try {
     await run('git', ['-C', dir, 'commit', '-q', '-m', message]);
@@ -347,7 +370,9 @@ export function resettableEntries(practiceRoot: string): string[] {
 
 /** Fill an (emptied) practice folder with `dir`'s folder as of `commit`. Works from bare clones too. */
 export async function extractAt(dir: string, commit: string, dest: string) {
-  const { prefix } = await repoPaths(dir);
+  const { top, prefix } = await repoPaths(dir);
+  // The folder may not exist yet at that commit (it's the parent of the commit that created it): nothing to extract.
+  if (prefix && !(await run('git', ['-C', top, 'cat-file', '-e', `${commit}:${prefix}`]).then(() => true, () => false))) return;
   await gitArchive(dir, `${commit}:${prefix}`, dest);
 }
 

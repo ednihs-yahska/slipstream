@@ -1044,6 +1044,37 @@ describe('Slipstream', () => {
       assert.strictEqual(await vscode.commands.executeCommand('slipstream.switchBranch', local2, 'nope'), false);
     });
 
+    it('commit by commit from the first commit: commit with the original message, then the next', async () => {
+      const dir = path.join(project(), 'm8-each');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'local', root: src },
+        branch: 'main',
+        start: { kind: 'each' },
+        location: dir,
+        show: false,
+      });
+      const link = () => JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
+      assert.deepStrictEqual(link().replay, { commits: c, index: 0 });
+      assert.deepStrictEqual(fs.readdirSync(dir), ['.slipstream']); // the first commit's parent: nothing
+      await ready(dir, () => pending(dir).join() === 'create a.ts');
+
+      fs.writeFileSync(path.join(dir, 'a.ts'), 'a1\n'); // typed it
+      await ready(dir, () => pending(dir).length === 0);
+      assert.strictEqual(await vscode.commands.executeCommand('slipstream.commitAndNext', dir, 'original'), true);
+      assert.strictEqual(sh(dir, 'log', '-1', '--format=%s'), 'one'); // a new practice repo, its first commit
+      assert.strictEqual(link().replay.index, 1);
+      assert.strictEqual(link().ref, c[1]);
+      await ready(dir, () => pending(dir).join() === 'create b.ts,modify a.ts');
+
+      // Next without committing.
+      fs.writeFileSync(path.join(dir, 'a.ts'), 'a1\na2\n');
+      fs.writeFileSync(path.join(dir, 'b.ts'), 'b\n');
+      await ready(dir, () => pending(dir).length === 0);
+      assert.strictEqual(await vscode.commands.executeCommand('slipstream.commitAndNext', dir, 'skip'), true);
+      assert.strictEqual(link().replay.index, 2);
+      assert.strictEqual(sh(dir, 'log', '--format=%s'), 'one'); // still only the first
+    });
+
     function sessionAtRef(dir: string): string | undefined {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
       return raw.ref;

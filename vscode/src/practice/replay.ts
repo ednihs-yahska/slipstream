@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { isInside, Link, META_DIR, readLink, updateLink, writeLink } from '../target/links';
 import { TargetStore } from '../target/TargetStore';
-import { changedBetween, changedSince, commitsInRange, excludeFromGit, gitArchive, originOf, parentOf, repoPaths } from './git';
+import { changedBetween, changedSince, commitsInRange, excludeFromGit, gitArchive, initPracticeRepo, messageOf, originOf, parentOf, repoPaths, saveIfRepo } from './git';
 import { history, pickCommit } from './pickers';
 import { log } from '../log';
 import { pickProject, remember } from './practice';
@@ -178,6 +178,71 @@ export async function replayNextCommit(store: TargetStore, practiceRoot?: string
   }
   store.invalidate();
   await vscode.commands.executeCommand('slipstream.steps.refresh');
+}
+
+/**
+ * Commit what you typed for the current commit in the practice folder, then go
+ * on to the next one. The commit is yours: `original` reuses the source
+ * commit's whole message; `edit` offers its subject to change (left as it is,
+ * the whole original message is kept); `skip` goes on without committing. A
+ * practice folder that isn't a git repository becomes one, with this as its
+ * first commit.
+ */
+export async function commitAndNext(store: TargetStore, practiceRoot: string | undefined, how: 'original' | 'edit' | 'skip', pendingSteps = 0): Promise<boolean> {
+  practiceRoot ??= findReplayRoot();
+  const link = practiceRoot ? readLink(practiceRoot) : undefined;
+  if (!practiceRoot || !link?.pinned || !link.ref) {
+    void vscode.window.showInformationMessage('No commit is being typed here.');
+    return false;
+  }
+  if (pendingSteps > 0) {
+    const ok = await vscode.window.showWarningMessage(
+      `${pendingSteps} step${pendingSteps === 1 ? '' : 's'} left in this commit. ${how === 'skip' ? 'Move on' : 'Commit and move on'} anyway? What's left carries over into the next commit's steps.`,
+      { modal: true },
+      'Yes',
+    );
+    if (ok !== 'Yes') return false;
+  }
+  if (how !== 'skip') {
+    const original = await messageOf(link.targetRoot, link.ref).catch(() => '');
+    let message = original;
+    if (how === 'edit') {
+      const subject = original.split('\n')[0];
+      const typed = await vscode.window.showInputBox({
+        title: `Slipstream: commit message for what you typed (${link.ref.slice(0, 7)})`,
+        value: subject,
+        prompt: original.includes('\n') ? 'Left unchanged, the original message is used whole, body included' : undefined,
+        validateInput: (v) => (v.trim() ? undefined : 'A commit needs a message'),
+      });
+      if (typed === undefined) return false;
+      message = typed.trim() === subject.trim() ? original : typed.trim();
+    }
+    if (!message) message = `Practice: ${link.ref.slice(0, 7)}`;
+    if (!(await commitPractice(practiceRoot, message))) return false;
+  }
+  await replayNextCommit(store, practiceRoot, 0);
+  return true;
+}
+
+async function commitPractice(practiceRoot: string, message: string): Promise<boolean> {
+  const saved = await saveIfRepo(practiceRoot, message);
+  if (saved === 'committed') return true;
+  if (saved === 'clean') {
+    void vscode.window.showInformationMessage('Nothing new to commit: going on to the next commit.');
+    return true;
+  }
+  if (saved === 'not-a-repo') {
+    try {
+      if ((await initPracticeRepo(practiceRoot, message)).committed) return true;
+    } catch (e) {
+      log.error(`git init in ${practiceRoot} failed`, e);
+    }
+  }
+  const go = await vscode.window.showWarningMessage(
+    'Could not commit in the practice folder (is a git user name and email set?). Go on to the next commit without committing?',
+    'Next Commit',
+  );
+  return go === 'Next Commit';
 }
 
 function findReplayRoot(): string | undefined {
