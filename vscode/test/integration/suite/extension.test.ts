@@ -912,7 +912,7 @@ describe('Slipstream', () => {
         show: false,
       });
       assert.strictEqual(dir, local());
-      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\n'); // the parent of "two"
+      assert.strictEqual(lf(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8')), 'a1\n'); // the parent of "two"
       await ready(local());
       assert.deepStrictEqual(pending(local()), ['create b.ts', 'modify a.ts']);
       assert.strictEqual(sh(src, 'status', '--porcelain'), ''); // the source is untouched
@@ -930,7 +930,7 @@ describe('Slipstream', () => {
     it('goes to another commit keeping my files', async () => {
       await vscode.commands.executeCommand('slipstream.goToCommit', local(), c[2], 'keep');
       await ready(local(), () => pending(local()).includes('create c.ts'));
-      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\n'); // untouched
+      assert.strictEqual(lf(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8')), 'a1\n'); // untouched
     });
 
     it('goes to a commit to type it, committing typed work first when the practice folder is a repository', async () => {
@@ -938,7 +938,7 @@ describe('Slipstream', () => {
       fs.writeFileSync(path.join(local(), 'typed.ts'), 'my work\n');
       await vscode.commands.executeCommand('slipstream.goToCommit', local(), c[2], 'reset');
       assert.ok(sh(local(), 'log', '--format=%s').includes('Practice, before moving to'), 'typed work was committed');
-      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\na2\n'); // the parent of "three"
+      assert.strictEqual(lf(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8')), 'a1\na2\n'); // the parent of "three"
       assert.ok(!fs.existsSync(path.join(local(), 'typed.ts')));
       await ready(local(), () => pending(local()).join() === 'create c.ts');
     });
@@ -961,7 +961,7 @@ describe('Slipstream', () => {
         location: dir,
         show: false,
       });
-      assert.strictEqual(fs.readFileSync(path.join(dir, 'a.ts'), 'utf8'), 'a1\n');
+      assert.strictEqual(lf(fs.readFileSync(path.join(dir, 'a.ts'), 'utf8')), 'a1\n');
       await ready(dir, () => pending(dir).length === 3);
       assert.strictEqual(sessionAt(dir)!.link.source, 'remote');
       assert.deepStrictEqual(pending(dir), ['create b.ts', 'create c.ts', 'modify a.ts']);

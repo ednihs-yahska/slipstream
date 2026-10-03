@@ -51,7 +51,8 @@ describe('history of a folder', () => {
     const dir = await ensureClone({ url: bare, path: 'app' });
     const dest = tmp();
     await extractAt(dir, hashes[0], dest);
-    expect(fs.readFileSync(path.join(dest, 'a.ts'), 'utf8')).toBe('a1\n');
+    // Git on Windows may convert line endings (core.autocrlf); Slipstream normalizes them anyway.
+    expect(fs.readFileSync(path.join(dest, 'a.ts'), 'utf8').replace(/\r\n/g, '\n')).toBe('a1\n');
     expect(fs.existsSync(path.join(dest, 'other.txt'))).toBe(false);
   });
 });
