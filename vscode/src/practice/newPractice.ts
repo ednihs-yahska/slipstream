@@ -4,10 +4,10 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { log } from '../log';
 import { isInside, writeLink } from '../target/links';
-import { ensureClone, Remote } from '../target/remotes';
+import { cacheDirFor, ensureClone, fetchRemote, isCloned, Remote } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
 import { Branch, branches, Commit, extractAt, originOf, parentOf, recentCommits } from './git';
-import { pickCommit } from './pickers';
+import { pickBranch, pickCommit } from './pickers';
 import { offerGitInit, remember } from './practice';
 
 /**
@@ -40,7 +40,7 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
   // Where git reads history from: the local folder, or the remote's cached clone.
   let gitDir: string | undefined;
   try {
-    gitDir = source.kind === 'local' ? source.root : await withProgress(`Fetching ${source.remote.url}`, () => ensureClone(source.remote));
+    gitDir = source.kind === 'local' ? source.root : await withProgress(`Fetching ${source.remote.url}`, () => cloneOrFetch(source.remote));
   } catch (e) {
     void vscode.window.showErrorMessage(`Could not fetch ${source.kind === 'remote' ? source.remote.url : ''}: ${(e as Error).message.split('\n')[0]}`);
     return undefined;
@@ -94,12 +94,19 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
   if (args.show === false) return location;
 
   await offerGitInit(location, `Start practising ${name}${chosen ? ` on ${chosen}` : ''}${ref ? ` (commit ${ref.slice(0, 7)})` : ''}`);
+  const uri = vscode.Uri.file(location);
+  // An empty window has nothing to lose: the practice folder simply opens in it.
+  if (!vscode.workspace.workspaceFolders?.length) {
+    await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
+    return location;
+  }
   const choice = await vscode.window.showInformationMessage(
     `Practice folder ready: ${location}. Open it and work through the Steps view; the History view moves between commits.`,
+    'Open Here',
     'Open in New Window',
     'Add to Workspace',
   );
-  const uri = vscode.Uri.file(location);
+  if (choice === 'Open Here') await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: false });
   if (choice === 'Open in New Window') await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
   if (choice === 'Add to Workspace') vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri });
   return location;
@@ -136,21 +143,6 @@ async function pickSource(): Promise<SourceChoice | undefined> {
   });
   if (sub === undefined) return undefined;
   return { kind: 'remote', remote: { url: url.trim(), ...(sub.trim() ? { path: sub.trim().replace(/^\/+|\/+$/g, '') } : {}) } };
-}
-
-/** Undefined: there's only one branch (or none), nothing to ask. Null: cancelled. */
-async function pickBranch(known: Branch[], currentIs: string): Promise<Branch | undefined | null> {
-  if (known.length < 2) return undefined;
-  type Item = vscode.QuickPickItem & { branch: Branch };
-  const pick = await vscode.window.showQuickPick<Item>(
-    known.map((b) => ({
-      label: `$(git-branch) ${b.name}`,
-      ...(b.current ? { description: currentIs } : {}),
-      branch: b,
-    })),
-    { title: 'Slipstream: which branch?', placeHolder: 'Its commits are the ones you can pick from, and its tip is “Latest”' },
-  );
-  return pick ? pick.branch : null;
 }
 
 async function pickStart(gitDir: string, history: Commit[]): Promise<StartChoice | undefined> {
@@ -204,6 +196,17 @@ function sourceName(source: SourceChoice): string {
 
 function expandHome(p: string): string {
   return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
+}
+
+/** A fresh clone, or the cached one brought up to date: branches pushed since it was cloned are listed too. */
+async function cloneOrFetch(remote: Remote): Promise<string> {
+  if (!isCloned(cacheDirFor(remote))) return ensureClone(remote);
+  try {
+    return await fetchRemote(remote);
+  } catch (e) {
+    log.warn(`Fetching ${remote.url} failed; using the cached copy (${(e as Error).message.split('\n')[0]})`);
+    return cacheDirFor(remote);
+  }
 }
 
 function withProgress<T>(title: string, task: () => Promise<T>): Thenable<T> {

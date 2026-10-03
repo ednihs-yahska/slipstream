@@ -8,12 +8,15 @@
   **git URL** (fetched into a cache, optionally a folder inside the repository), starting from **one
   commit** (you retype exactly that commit), **a commit to the latest**, or **empty** (the whole
   project). With more than one **branch**, you pick the branch first: its commits are offered, and its
-  tip is Latest. Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
+  tip is Latest. The new folder opens in the same window when that window is empty, or **Open Here**
+  when it isn't. Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
   (`slipstream.practiceHome`); the in-project option is gone.
 - **History view:** the source's commits under **Latest**, with the one you're typing towards marked.
   Click a commit, or use **Older** / **Newer**. Each move asks: **type this commit** (reset the
   practice folder to its parent; your work is committed first in a practice repository, otherwise
-  trashed after you confirm) or **keep my files** (only the target changes).
+  trashed after you confirm) or **keep my files** (only the target changes). **Switch Branch…**
+  moves a practice folder to another branch; a git-URL source is fetched first, so branches pushed
+  later appear. New Practice fetches a cached git URL before listing its branches.
 - Replays default to `~/Slipstream/<project>-replay`. Set Up Agent offers deny rules only for older,
   in-project practice folders. `slipstream.defaultPracticeDir` is replaced by `slipstream.practiceHome`.
 - Fixed: starting from a commit of a **git-URL** source failed, because extracting a commit from the

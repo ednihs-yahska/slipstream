@@ -16,7 +16,7 @@ import { guidanceText } from './ghost/guidance';
 import { hintFor } from './ghost/hint';
 import { chooseMode, currentMode, Reveal } from './ghost/modes';
 import { linkPracticeFolder, openPracticeFolder } from './practice/practice';
-import { goToCommit, HistoryView, Mode, stepHistory } from './history/history';
+import { goToCommit, HistoryView, Mode, stepHistory, switchBranch } from './history/history';
 import { newPractice, NewPracticeArgs } from './practice/newPractice';
 import { clearLocalCheckout, clonePracticeRepo, pickLocalCheckout, storeProgress } from './practice/portable';
 import { replayCommit, replayContinue, replayNextCommit, replayRange } from './practice/replay';
@@ -230,6 +230,14 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     vscode.commands.registerCommand('slipstream.olderCommit', (mode?: Mode) => stepHistory(store, sessions, historyProvider, 'older', mode)),
     vscode.commands.registerCommand('slipstream.newerCommit', (mode?: Mode) => stepHistory(store, sessions, historyProvider, 'newer', mode)),
     vscode.commands.registerCommand('slipstream.history.refresh', () => historyProvider.refresh()),
+    vscode.commands.registerCommand('slipstream.switchBranch', (root?: string, branch?: string) => {
+      const r = typeof root === 'string' ? root : historyProvider.current()?.link.practiceRoot;
+      if (!r) {
+        void vscode.window.showInformationMessage('Open a practice folder first.');
+        return false;
+      }
+      return switchBranch(store, sessions, r, branch);
+    }),
     vscode.commands.registerCommand('slipstream.clonePracticeRepo', (args?: { url?: string; parent?: string; show?: boolean }) =>
       clonePracticeRepo(context, store, args),
     ),
