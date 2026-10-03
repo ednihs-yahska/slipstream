@@ -231,7 +231,7 @@ Practice folders (inside/outside project, seeded from a commit or empty), link f
 - **Git:** the whole `<project>/.slipstream/` (practice and replay folders, plan.md) is excluded via `.git/info/exclude`, never committed. A practice folder elsewhere in the repo is excluded by its own path.
 
 **M4 — Polish** ✅ *built*
-- **Renamed to Slipstream** (`EdnihsYahska.slipstream`): commands `Slipstream: …`, settings `slipstream.*`, per-project folder `.slipstream/`, `slipstream-git:` documents.
+- **Renamed to Slipstream** (`EdnihsYahska.slipstream`, later listed as *Slipstream Practice*, `EdnihsYahska.slipstream-practice`, because "Slipstream" was taken on the Marketplace): commands `Slipstream: …`, settings `slipstream.*`, per-project folder `.slipstream/`, `slipstream-git:` documents.
 - **Packaging:** `npm run package` → a 43 KB `.vsix` (minified bundle, media, README, CHANGELOG, LICENSE). MIT licence, Marketplace metadata (icon, banner, categories, keywords, preview flag). Installs cleanly; integration tests pass against the production bundle. Publishing steps in CONTRIBUTING.md; publishing itself is manual.
 - **Docs:** user-facing README (with settings), developer CONTRIBUTING.md, CHANGELOG.md.
 - **Diagnostics:** "Slipstream" output channel with errors, and scan timings at debug level.
