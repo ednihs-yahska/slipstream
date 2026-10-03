@@ -2,7 +2,7 @@
   "name": "slipstream-practice",
   "displayName": "Slipstream Review",
   "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "publisher": "EdnihsYahska",
   "license": "MIT",
   "repository": {
@@ -47,7 +47,7 @@
     "commands": [
       {
         "command": "slipstream.chooseMode",
-        "title": "Choose Practice Mode\u2026",
+        "title": "Choose Practice Mode…",
         "category": "Slipstream",
         "icon": "$(eye)"
       },
@@ -59,7 +59,7 @@
       },
       {
         "command": "slipstream.newPractice",
-        "title": "New Practice\u2026",
+        "title": "New Practice…",
         "category": "Slipstream",
         "icon": "$(add)"
       },
@@ -88,35 +88,35 @@
       },
       {
         "command": "slipstream.linkPracticeFolder",
-        "title": "Link an Existing Folder as Practice Folder\u2026",
+        "title": "Link an Existing Folder as Practice Folder…",
         "category": "Slipstream"
       },
       {
         "command": "slipstream.setUpAgent",
-        "title": "Set Up Agent\u2026",
+        "title": "Set Up Agent…",
         "category": "Slipstream",
         "icon": "$(hubot)"
       },
       {
         "command": "slipstream.connectAgent",
-        "title": "Connect Your Agent (MCP)\u2026",
+        "title": "Connect Your Agent (MCP)…",
         "category": "Slipstream",
         "icon": "$(plug)"
       },
       {
         "command": "slipstream.openPracticeFolder",
-        "title": "Open Practice Folder\u2026",
+        "title": "Open Practice Folder…",
         "category": "Slipstream"
       },
       {
         "command": "slipstream.clonePracticeRepo",
-        "title": "Clone a Practice Repository\u2026",
+        "title": "Clone a Practice Repository…",
         "category": "Slipstream",
         "icon": "$(repo-clone)"
       },
       {
         "command": "slipstream.pickLocalCheckout",
-        "title": "Use a Local Checkout of the Project\u2026",
+        "title": "Use a Local Checkout of the Project…",
         "category": "Slipstream",
         "icon": "$(folder)"
       },
@@ -144,13 +144,13 @@
       },
       {
         "command": "slipstream.replayCommit",
-        "title": "Replay a Commit\u2026",
+        "title": "Replay a Commit…",
         "category": "Slipstream",
         "icon": "$(git-commit)"
       },
       {
         "command": "slipstream.replayRange",
-        "title": "Replay a Range of Commits\u2026",
+        "title": "Replay a Range of Commits…",
         "category": "Slipstream",
         "icon": "$(history)"
       },
@@ -215,7 +215,7 @@
       },
       {
         "command": "slipstream.setTarget",
-        "title": "Set Target File for Current Editor\u2026",
+        "title": "Set Target File for Current Editor…",
         "category": "Slipstream"
       },
       {
@@ -364,6 +364,19 @@
           "maximum": 60,
           "markdownDescription": "In `delayed` mode, how long you're stuck at a spot before the code appears. Typing a correct character restarts the clock."
         },
+        "slipstream.editOrder": {
+          "type": "string",
+          "enum": [
+            "symbols",
+            "file"
+          ],
+          "default": "symbols",
+          "enumDescriptions": [
+            "While typing a commit, Alt+] goes to the next edit in dependency order, in any file: what an edit uses comes before it (found with your language extensions, or by name without one).",
+            "Alt+] goes to the next change in the current file."
+          ],
+          "description": "What Alt+] (Next Change) goes to while you type a commit."
+        },
         "slipstream.stepOrder": {
           "type": "string",
           "enum": [
@@ -386,7 +399,7 @@
         "slipstream.showTypingSpeed": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show typing speed and time left in the status bar and the Steps view. Speed counts real keystrokes only \u2014 never `Tab`/`Shift+Tab` accepts, undo/redo, pastes or completions."
+          "markdownDescription": "Show typing speed and time left in the status bar and the Steps view. Speed counts real keystrokes only — never `Tab`/`Shift+Tab` accepts, undo/redo, pastes or completions."
         },
         "slipstream.idleSeconds": {
           "type": "number",
@@ -433,7 +446,7 @@
     "viewsWelcome": [
       {
         "view": "slipstream.steps",
-        "contents": "No practice folder in this window yet.\n[New Practice](command:slipstream.newPractice)\nPractise a local project or a git URL, in a folder of its own: a commit, everything since a commit, or the whole project.\n[Clone a Practice Repository](command:slipstream.clonePracticeRepo) \u00b7 [Link an Existing Folder](command:slipstream.linkPracticeFolder)"
+        "contents": "No practice folder in this window yet.\n[New Practice](command:slipstream.newPractice)\nPractise a local project or a git URL, in a folder of its own: a commit, everything since a commit, or the whole project.\n[Clone a Practice Repository](command:slipstream.clonePracticeRepo) · [Link an Existing Folder](command:slipstream.linkPracticeFolder)"
       },
       {
         "view": "slipstream.history",

@@ -10,7 +10,9 @@ import { initLog } from './log';
 import { leftText, speedText, statsMarkdown } from './stats/report';
 import { noticeOtherProviders } from './ghost/coexistence';
 import { applyMine, DivergenceActions, openInTarget } from './ghost/Divergence';
-import { leadingBreak, needsRoom, Ghost } from './diff/tolerance';
+import { leadingBreak, lineCol, needsRoom, Ghost } from './diff/tolerance';
+import { planFor } from './order/commitOrder';
+import { lf, pendingUnits, remaining, touches } from './order/units';
 import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextProvider';
 import { guidanceText } from './ghost/guidance';
 import { hintFor } from './ghost/hint';
@@ -150,11 +152,16 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
   };
 
   const jump = (direction: 1 | -1) => async () => {
+    if (direction === 1 && (await nextInCommitOrder())) return;
     const editor = vscode.window.activeTextEditor;
     const hunks = editor ? await store.getHunks(editor.document) : undefined;
     if (!editor || !hunks?.length) return;
     const target = pickHunk(hunks, editor.document.offsetAt(editor.selection.active), direction);
-    const pos = editor.document.positionAt(target.start);
+    await settleAt(editor, editor.document.positionAt(target.start));
+  };
+
+  /** Put the cursor at the start of a change, ready to type it. */
+  const settleAt = async (editor: vscode.TextEditor, pos: vscode.Position) => {
     editor.selection = new vscode.Selection(pos, pos);
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     // Make room now rather than in the refresh the cursor move triggers: someone
@@ -171,6 +178,61 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
       editor.selection = new vscode.Selection(end, end);
     }
     await refresh();
+  };
+
+  /**
+   * Alt+] while typing a commit: the next edit in dependency order, in any file.
+   * Creates the file if it doesn't exist yet. False if there's no commit, no
+   * plan, or nothing left in it, and Alt+] falls back to the next change in this file.
+   */
+  const nextInCommitOrder = async (): Promise<boolean> => {
+    if (vscode.workspace.getConfiguration('slipstream').get<string>('editOrder', 'symbols') !== 'symbols') return false;
+    const editor = vscode.window.activeTextEditor;
+    const session = editor && sessions.sessionFor(editor.document.uri.fsPath);
+    const pending = session && planFor(session.link);
+    if (!session || !pending) return false;
+    const plan = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Slipstream: working out the order of edits' }, () => pending);
+    if (!plan) return false;
+    const root = session.link.practiceRoot;
+    const lenient = vscode.workspace.getConfiguration('slipstream').get<string>('whitespace', 'lenient') === 'lenient';
+    const textOf = (rel: string) => {
+      const abs = path.join(root, rel);
+      const open = vscode.workspace.textDocuments.find((d) => d.uri.scheme === 'file' && d.uri.fsPath === abs);
+      if (open) return open.getText();
+      try {
+        return fs.readFileSync(abs, 'utf8');
+      } catch {
+        return undefined;
+      }
+    };
+    const left = pendingUnits(plan.units, plan.after, textOf, lenient);
+    const todo = plan.units.filter((u) => left.has(u.id));
+    if (!todo.length) return false;
+
+    // Already at the next edit: go on to the one after it.
+    let next = todo[0];
+    const rel = path.relative(root, editor.document.uri.fsPath).split(path.sep).join('/');
+    if (next.rel === rel && todo.length > 1) {
+      const real = lf(editor.document.getText());
+      const cursor = lf(editor.document.getText(new vscode.Range(new vscode.Position(0, 0), editor.selection.active))).length;
+      const here = remaining(real, plan.after.get(rel)!, lenient).find((l) => touches(next, l.range));
+      if (here && cursor >= here.hunk.start && cursor <= Math.max(here.hunk.end, here.hunk.start + here.hunk.insert.length)) next = todo[1];
+    }
+
+    const abs = path.join(root, next.rel);
+    if (!fs.existsSync(abs)) {
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, '');
+    }
+    const target = await vscode.window.showTextDocument(vscode.Uri.file(abs));
+    const real = lf(target.document.getText());
+    const spot = remaining(real, plan.after.get(next.rel)!, lenient).find((l) => touches(next, l.range));
+    const { line, character } = lineCol(real, spot ? spot.hunk.start : 0);
+    await settleAt(target, new vscode.Position(line, character));
+    const names = plan.names.get(next.id);
+    const step = plan.units.indexOf(next) + 1;
+    vscode.window.setStatusBarMessage(`Slipstream: edit ${step}/${plan.units.length}${names?.length ? `: ${names.slice(0, 3).join(', ')}` : ''} in ${next.rel}`, 5000);
+    return true;
   };
 
   // Unbound by default: deleting is meant to be done by hand.

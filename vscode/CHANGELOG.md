@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 (pre-release)
+
+**Type a commit in the order its code needs.**
+
+- **Edits in dependency order:** while typing a commit, Alt+] goes to the next edit in the order the
+  commit's symbols need, across files, creating files as needed. The order comes from your language
+  extensions (document symbols and go-to-definition, run on the commit extracted into a cache), or
+  from names without one. `slipstream.editOrder: "file"` restores the old behaviour.
+- The diff keeps an edit and a new block apart across a closing brace when both pair cleanly
+  (`return 0` → `return helper()` above a new `helper()`), so each can be typed on its own.
+
 ## 0.5.0 (pre-release)
 
 **Practice folders of their own, and moving through history.**

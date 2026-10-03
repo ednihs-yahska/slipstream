@@ -183,6 +183,21 @@ export async function firstCommit(dir: string, to = 'HEAD'): Promise<string | un
   return stdout.split('\n').find(Boolean);
 }
 
+/** Files a commit adds, modifies or deletes in the folder, relative to it (renames count as a delete and an add). */
+export async function changedFiles(dir: string, commit: string): Promise<{ rel: string; status: 'A' | 'M' | 'D' }[]> {
+  const { top, prefix } = await repoPaths(dir);
+  const { stdout } = await run('git', ['-C', top, 'diff-tree', '-r', '--root', '--no-commit-id', '--no-renames', '--name-status', '-z', commit, '--', prefix || '.'], {
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const parts = stdout.split('\0').filter(Boolean);
+  const out: { rel: string; status: 'A' | 'M' | 'D' }[] = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const status = parts[i][0] === 'A' || parts[i][0] === 'D' ? (parts[i][0] as 'A' | 'D') : 'M';
+    out.push({ rel: parts[i + 1].slice(prefix.length), status });
+  }
+  return out;
+}
+
 /** A commit's whole message, subject and body. */
 export async function messageOf(dir: string, rev: string): Promise<string> {
   const { stdout } = await run('git', ['-C', dir, 'log', '-1', '--format=%B', rev]);
