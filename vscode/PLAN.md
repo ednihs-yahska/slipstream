@@ -277,6 +277,16 @@ As built:
 - Workspace Trust: `untrustedWorkspaces.supported: false` with a description; `virtualWorkspaces: false`.
 - Tests: 12 unit tests against a local bare remote; 4 integration tests (clone and practise against a remote, follow a pushed commit, switch to and from a local checkout, clone a practice repo).
 
+**M8 — Separate practice folders and history** ✅ *built — version 0.5.0 (owner request)*
+
+The owner's call after using it: practice folders don't belong inside the project. A practice folder is now always a folder of its own (`~/Slipstream/<project>` by default), typed towards a **local folder or a git URL**, with the source's history to move through.
+
+- **New Practice…** (`src/practice/newPractice.ts`), from any window. Source: a workspace folder, another local folder, or a git URL with an optional subfolder (cached bare clone). Start: *one commit* (seed the parent, pin the commit), *a commit to the latest* (seed the commit, follow the latest), or *empty*. Location outside the source; offers `git init`. `slipstream.startPractice` is kept as an alias.
+- **History view** (`src/history/history.ts`): "Latest" plus up to 200 commits touching the folder (`recentCommits` now runs from the repo root with the folder as pathspec, so it works in bare clones too), with the pinned commit marked. **Go to Commit / Older / Newer** ask each time (owner): *type this commit* (`saveIfRepo` commits typed work in a practice repo; otherwise the files go to the trash after confirmation; then `extractAt` the parent) or *keep my files* (only `ref` changes). "Latest" unpins.
+- **Removed:** the in-project option (owner: "separate only"). Older in-project folders still work through their links; Set Up Agent offers deny rules only for those; replays default to `~/Slipstream/<project>-replay`.
+- **Found by the tests:** `gitArchive` asked for `--show-toplevel`, which a bare clone doesn't have, so seeding from a git-URL source's commit could never have worked. It now uses `repoPaths`.
+- Tests: 5 unit (history in a working tree and in a bare clone with a subfolder, extraction, neighbours, save-before-reset); 6 integration (New Practice local/commit and remote/since, the History view and its marker, keep vs reset with a practice repo, Older/Newer/Latest).
+
 **M7 — Typing speed and time estimates** ✅ *built — version 0.3.0*
 
 Goal: show how fast the developer actually types, counting only real keystrokes (never `Tab` / `Shift+Tab` accepts), and estimate how long the current session and the whole project will take at that speed.

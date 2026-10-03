@@ -34,14 +34,34 @@ In every mode, `Tab` / `Shift+Tab` still fill in a word / line: a peek when you'
 **Requirements:** VS Code 1.100 or later, in a trusted workspace. Git, for starting from a commit,
 replays, remote targets, and `.gitignore` support. Works with any coding agent; extra setup is available for Claude Code.
 
-## Use it on your own project
+## Start practising
 
-1. Let the agent make its changes in your project.
-2. Run **Slipstream: Start Practice…**
-   - **Where:** inside this project (`.slipstream/practice/`) or somewhere else on disk.
-   - **Start from:** the last commit (your project before the agent's uncommitted changes), an earlier
-     commit picked from the history (you retype everything since, in one go), or empty.
-3. Open the **Slipstream** view in the activity bar and work through the steps.
+Run **Slipstream: New Practice…** from any window. No project needs to be open.
+
+1. **What to practise:** a local folder (the project open in this window, or any other), or a **git
+   URL**, which Slipstream fetches into a cache, with an optional folder inside the repository.
+2. **Where to start:**
+   - **Type one commit:** the practice folder starts at its parent, and you retype exactly what it changed.
+   - **From a commit to the latest:** it starts at that commit, and you retype everything since.
+   - **Empty:** you retype the whole project.
+3. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
+   `slipstream.practiceHome`). It can be a git repository too; New Practice offers to make one.
+
+Open the practice folder and work through the **Steps** view. Your project is never touched: commits
+are read straight from git.
+
+## Moving through history
+
+The **History** view lists the source's commits, newest first, under **Latest**. The one you're
+typing towards is marked. Click any commit, or use **Older** / **Newer**, to move there. Each move asks:
+
+- **Type this commit:** the practice folder is reset to that commit's parent, and you retype exactly
+  what it changed. Your current files are committed first if the practice folder is a git repository;
+  otherwise they go to the trash, after you confirm.
+- **Keep my files:** only the target changes; the steps show what's left from where you are.
+
+**Latest** follows the project as it is now (or the remote's branch). For a git-URL source, **Fetch**
+updates the list.
 
 ## Typing speed and time left
 
@@ -60,14 +80,13 @@ at your speed. Until you've typed enough they say "about…" and use 40 wpm. Tur
 
 ## Working with your agent
 
-Run **Slipstream: Set Up Agent…** (also offered after Start Practice). It shows a preview of every
-change before writing it:
+Run **Slipstream: Set Up Agent…** in your project. It shows a preview of every change before writing it:
 
 - **Instructions** for the agent, in `CLAUDE.local.md` (just you), `CLAUDE.md` (your team) or `AGENTS.md`
-  (other agents). They say a human will retype the changes, so: keep diffs focused, leave a plan, and
-  stay out of `.slipstream/`. Re-running updates the section in place.
-- **Claude Code deny rules** in `.claude/settings.local.json`, so Claude can't read or edit your practice
-  folders.
+  (other agents). They say a human will retype the changes, so: keep diffs focused, leave a plan
+  (`.slipstream/plan.md`), and stay out of `.slipstream/` otherwise. Re-running updates the section in place.
+- Practice folders live outside the project, so the agent can't reach them. Only if you still have an
+  older practice folder *inside* the project does Set Up Agent also offer Claude Code deny rules for it.
 
 Personal files are kept out of git through `.git/info/exclude`.
 
@@ -105,8 +124,10 @@ can run the same script as a stdio MCP server. The tools only read; they never c
 
 Practise on code that's already written: yours, your team's, or an open-source project's.
 
-- **Slipstream: Replay a Commit…**: pick a commit; you get a practice folder at its parent
-  (`.slipstream/replay/` or anywhere) and retype exactly what that commit changed.
+The **History** view (above) is the everyday way to move between commits. Two commands add to it:
+
+- **Slipstream: Replay a Commit…**: pick a commit; you get a practice folder at its parent (in
+  `~/Slipstream/` by default) and retype exactly what that commit changed.
 - **Slipstream: Replay a Range of Commits…**: pick the oldest and newest commits; you retype them
   one after another. When a commit is done, choose **Next Commit**.
 - After the last replayed commit, **Continue to Current Files** (offered when there's more) carries on to
@@ -114,7 +135,7 @@ Practise on code that's already written: yours, your team's, or an open-source p
 
 Two ways to start from an earlier commit, then:
 
-| | Start Practice → *An earlier commit…* | Replay a Range → *Continue to Current Files* |
+| | New Practice → *From a commit to the latest* | Replay a Range → *Continue to Current Files* |
 |---|---|---|
 | You type | everything since that commit, all at once | one commit at a time, then what's left |
 | Steps | one list for the whole difference | per commit, with a summary after each |
@@ -128,14 +149,14 @@ yourself versus filled in with Tab.
 
 ## Take your practice anywhere
 
-A practice folder can be its own git repository. Start Practice offers to create one; push it like any
+A practice folder can be its own git repository. New Practice offers to create one; push it like any
 other repository. Clone it onto another machine with **Slipstream: Clone a Practice Repository…**, and
 it finds its project:
 
 1. **A local checkout you point it at**: **Use a Local Checkout of the Project…** writes
    `.slipstream/link.local.json`, which stays on this machine and out of git.
 2. **The path it was created with**, if that folder exists here and is a checkout of the project.
-3. **The project's git remote**: Start Practice records `origin`, and Slipstream fetches it into a cache
+3. **The project's git remote**: New Practice records `origin` (or, for a git-URL source, the URL), and Slipstream fetches it into a cache
    (`~/.cache/slipstream/remotes`, or `%LOCALAPPDATA%\slipstream\remotes` on Windows). It follows the
    branch, fetching when a session starts, every `slipstream.remoteFetchMinutes` minutes, and on
    **Fetch Remote Targets**.
@@ -149,29 +170,24 @@ machines practise at once, the last write wins.
 A practice folder contains `.slipstream/link.json`:
 
 ```json
-{ "target": "../.." }
+{ "target": "/Users/you/code/my-app", "remote": { "url": "https://github.com/you/my-app.git", "ref": "main" }, "ref": "<commit>" }
 ```
 
 `target` is the project, either absolute or relative to the practice folder (`~` works). Replays add
 `"ref"` (the commit being typed) and `"replay": { "commits": [...], "index": 0 }`. A practice folder
 can also carry `"remote": { "url": "…", "ref": "main", "path": "app" }`: the project's git URL, the
 branch to follow, and the project's folder inside the repository (see above). A practice file at
-`src/a.ts` is typed towards `<target>/src/a.ts`. Because the link sits in the practice folder, it works
-inside the project, elsewhere on disk, or with the practice folder open in its own window. **Link an
-Existing Folder as Practice Folder…** writes this file for any two folders.
+`src/a.ts` is typed towards `<target>/src/a.ts`. A practice folder made from a git URL has only `remote`.
+`ref` is the commit you're typing towards; the History view sets it. **Link an Existing Folder as
+Practice Folder…** writes this file for any two folders.
 
 Want it the other way round, typing in the project while the agent writes to a copy? Put
 `{ "target": ".slipstream/shadow" }` in `<project>/.slipstream/link.json` and point the agent at
 `.slipstream/shadow/`.
 
-An in-project practice folder is kept out of the way:
-
-- **Git:** the project's whole `.slipstream/` folder (practice and replay folders, the agent's plan) is
-  added to `.git/info/exclude` (local, never committed), so git and git-aware tools ignore it.
-- **VS Code search:** `**/.slipstream/**` is added to `search.exclude` in your **user** settings, so
-  Find in Files and Quick Open (`Cmd+P`) only show project files. The Explorer still shows the practice
-  folder, so open practice files from there. Nothing is written to the project's `.vscode/settings.json`.
-  Turn this off with `slipstream.hideFromSearch`.
+Older versions could put practice folders *inside* the project (`.slipstream/practice/`). Those keep
+working through their link file, and stay out of git (`.git/info/exclude`) and VS Code search
+(`slipstream.hideFromSearch`). New ones are always created outside the project.
 
 ## The Steps view
 
@@ -226,8 +242,8 @@ put the cursor on the difference in your practice file and press `Cmd/Ctrl+.`:
 |---|---|---|
 | `slipstream.whitespace` | `lenient` | `lenient` ignores whitespace-only differences; `exact` requires every character |
 | `slipstream.maxGhostLines` | `30` | the most lines of ghost text shown at once |
-| `slipstream.defaultPracticeDir` | `.slipstream/practice` | where Start Practice puts an in-project practice folder |
-| `slipstream.hideFromSearch` | `true` | hide in-project practice folders from Find in Files and Quick Open |
+| `slipstream.practiceHome` | `~/Slipstream` | where New Practice creates practice folders |
+| `slipstream.hideFromSearch` | `true` | older in-project practice folders: hide them from Find in Files and Quick Open |
 | `slipstream.mode` | `ghost` | `ghost`, `delayed` or `hint` (see Practice modes) |
 | `slipstream.revealDelaySeconds` | `3` | in `delayed` mode, how long you're stuck before the code appears |
 | `slipstream.stepOrder` | `dependencies` | without a plan: `dependencies` (imported files first) or `path` |
@@ -242,7 +258,8 @@ Errors and (at debug level) scan timings go to the **Slipstream** output channel
 
 | Command | |
 |---|---|
-| Slipstream: Start Practice… | create a practice folder for this project |
+| Slipstream: New Practice… | a practice folder for a local folder or a git URL, from a commit or empty |
+| Slipstream: Older Commit / Newer Commit | move through the History view (or click a commit there) |
 | Slipstream: Link an Existing Folder as Practice Folder… | link any folder to any target folder |
 | Slipstream: Set Up Agent… | agent instructions + Claude Code deny rules, previewed first |
 | Slipstream: Connect Your Agent (MCP)… | read-only tools for your agent to see your progress |
@@ -269,10 +286,7 @@ Errors and (at debug level) scan timings go to the **Slipstream** output channel
 
 - Ghost text appears only when the cursor is where the missing code starts (spaces/tabs before the
   cursor are tolerated). Use `Alt+]` to get there.
-- Search hiding covers practice folders under `.slipstream/`. A custom in-project location relies on
-  `.git/info/exclude` alone.
-- An in-project practice folder may be picked up by project tooling that ignores git (e.g. a `tsconfig.json`
-  including `**/*`). Use a folder outside the project if that bites.
+- The History view shows the most recent 200 commits that touch the project's folder.
 - Other inline-completion providers (e.g. Copilot) can show suggestions at the same time: VS Code has no
   API to silence them. A one-time notice offers Copilot's settings; Tab always types Slipstream's ghost.
 - Without a plan file, steps follow imports for JavaScript/TypeScript and Python; other languages fall

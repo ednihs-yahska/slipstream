@@ -15,7 +15,9 @@ import { ghostAtCursor, ghostKey, GhostTextProvider } from './ghost/GhostTextPro
 import { guidanceText } from './ghost/guidance';
 import { hintFor } from './ghost/hint';
 import { chooseMode, currentMode, Reveal } from './ghost/modes';
-import { linkPracticeFolder, openPracticeFolder, startPractice } from './practice/practice';
+import { linkPracticeFolder, openPracticeFolder } from './practice/practice';
+import { goToCommit, HistoryView, Mode, stepHistory } from './history/history';
+import { newPractice, NewPracticeArgs } from './practice/newPractice';
 import { clearLocalCheckout, clonePracticeRepo, pickLocalCheckout, storeProgress } from './practice/portable';
 import { replayCommit, replayContinue, replayNextCommit, replayRange } from './practice/replay';
 import { GIT_SCHEME, GitTargetProvider } from './target/gitTarget';
@@ -30,6 +32,7 @@ export interface SlipstreamApi {
   ghost: GhostTextProvider;
   /** The hint shown after the cursor, if any (for tests). */
   hint: () => string | undefined;
+  history: HistoryView;
 }
 
 export function activate(context: vscode.ExtensionContext): SlipstreamApi {
@@ -37,6 +40,8 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
   const store = new TargetStore();
   const decorations = new Decorations();
   const sessions = new Sessions(context, store);
+  const historyProvider = new HistoryView(sessions);
+  const historyView = vscode.window.createTreeView('slipstream.history', { treeDataProvider: historyProvider });
   const stepsView = vscode.window.createTreeView('slipstream.steps', {
     treeDataProvider: new StepsView(sessions),
     showCollapseAll: true,
@@ -214,7 +219,17 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     }),
     vscode.commands.registerCommand('slipstream.connectAgent', (opts?: { show?: boolean }) => connectAgent(context, opts)),
     vscode.commands.registerCommand('slipstream.setUpAgent', (args?: SetupArgs) => setUpAgent(sessions, args)),
-    vscode.commands.registerCommand('slipstream.startPractice', () => startPractice(context, store)),
+    vscode.commands.registerCommand('slipstream.newPractice', (args?: NewPracticeArgs) => newPractice(context, store, args)),
+    // The old command id still works: it's the same flow now (practice folders are always separate).
+    vscode.commands.registerCommand('slipstream.startPractice', (args?: NewPracticeArgs) => newPractice(context, store, args)),
+    historyView,
+    vscode.commands.registerCommand('slipstream.goToCommit', (root?: string, target?: string, mode?: Mode) => {
+      const r = root ?? historyProvider.current()?.link.practiceRoot;
+      return r && target ? goToCommit(store, sessions, r, target, mode) : false;
+    }),
+    vscode.commands.registerCommand('slipstream.olderCommit', (mode?: Mode) => stepHistory(store, sessions, historyProvider, 'older', mode)),
+    vscode.commands.registerCommand('slipstream.newerCommit', (mode?: Mode) => stepHistory(store, sessions, historyProvider, 'newer', mode)),
+    vscode.commands.registerCommand('slipstream.history.refresh', () => historyProvider.refresh()),
     vscode.commands.registerCommand('slipstream.clonePracticeRepo', (args?: { url?: string; parent?: string; show?: boolean }) =>
       clonePracticeRepo(context, store, args),
     ),
@@ -274,7 +289,7 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
 
   void refresh();
   void refreshMcpServer(context);
-  return { store, sessions, ghost: ghostProvider, hint: () => lastHint };
+  return { store, sessions, ghost: ghostProvider, hint: () => lastHint, history: historyProvider };
 }
 
 function pickHunk(hunks: readonly Hunk[], cursor: number, direction: 1 | -1): Hunk {

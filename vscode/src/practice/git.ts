@@ -22,9 +22,10 @@ export async function gitInfo(dir: string): Promise<{ prefix: string; dirty: boo
  * combined with a `rev:sub/` treeish yields an empty archive.
  */
 export async function gitArchive(repoDir: string, treeish: string, dest: string): Promise<void> {
-  const { stdout: top } = await run('git', ['-C', repoDir, 'rev-parse', '--show-toplevel']);
+  // repoPaths, not --show-toplevel: a remote target's bare clone has no working tree.
+  const { top } = await repoPaths(repoDir);
   return new Promise((resolve, reject) => {
-    const archive = spawn('git', ['-C', top.trim(), 'archive', '--format=tar', treeish]);
+    const archive = spawn('git', ['-C', top, 'archive', '--format=tar', treeish]);
     const tar = spawn('tar', ['-x', '-C', dest]);
     let err = '';
     archive.stderr.on('data', (d) => (err += d));
@@ -98,8 +99,11 @@ export interface Commit {
 }
 
 /** Recent commits touching `dir` (newest first), for pickers. */
-export async function recentCommits(dir: string, max = 200): Promise<Commit[]> {
-  const { stdout } = await run('git', ['-C', dir, 'log', `-n${max}`, '--format=%H%x1f%h%x1f%s%x1f%an%x1f%ar', '--', '.'], {
+export async function recentCommits(dir: string, max = 200, ref = 'HEAD'): Promise<Commit[]> {
+  // From the repository root with the folder as a pathspec: works for working trees and
+  // for bare clones (a remote target's cache), where the folder comes from the clone's config.
+  const { top, prefix } = await repoPaths(dir);
+  const { stdout } = await run('git', ['-C', top, 'log', `-n${max}`, '--format=%H%x1f%h%x1f%s%x1f%an%x1f%ar', ref, '--', prefix || '.'], {
     maxBuffer: 16 * 1024 * 1024,
   });
   return stdout
@@ -285,4 +289,44 @@ export async function addedLines(dir: string, commit: string): Promise<string[]>
     .map((l) => l.slice(1));
   addedCache.set(key, lines);
   return lines;
+}
+
+/**
+ * Before resetting a practice folder: if it's a git repository with changes,
+ * commit them, so moving to another commit never loses typing. Returns whether
+ * the folder is now clean (true also when there was nothing to commit).
+ */
+export async function saveIfRepo(practiceRoot: string, message: string): Promise<'not-a-repo' | 'clean' | 'committed' | 'failed'> {
+  if (!fs.existsSync(path.join(practiceRoot, '.git'))) return 'not-a-repo';
+  try {
+    const { stdout } = await run('git', ['-C', practiceRoot, 'status', '--porcelain']);
+    if (!stdout.trim()) return 'clean';
+    await run('git', ['-C', practiceRoot, 'add', '-A']);
+    await run('git', ['-C', practiceRoot, 'commit', '-q', '-m', message]);
+    return 'committed';
+  } catch {
+    return 'failed';
+  }
+}
+
+/** Entries of a practice folder that a reset replaces: everything but .git and .slipstream. */
+export function resettableEntries(practiceRoot: string): string[] {
+  return fs
+    .readdirSync(practiceRoot)
+    .filter((n) => n !== '.git' && n !== '.slipstream')
+    .map((n) => path.join(practiceRoot, n));
+}
+
+/** Fill an (emptied) practice folder with `dir`'s folder as of `commit`. Works from bare clones too. */
+export async function extractAt(dir: string, commit: string, dest: string) {
+  const { prefix } = await repoPaths(dir);
+  await gitArchive(dir, `${commit}:${prefix}`, dest);
+}
+
+/** In a newest-first history, the commit before (older) and after (newer) `current`; from "latest", older is the newest commit. */
+export function neighbours<T extends { hash: string }>(history: T[], current: string | undefined): { older?: T; newer?: T } {
+  if (!current) return { older: history[0] };
+  const i = history.findIndex((c) => c.hash === current);
+  if (i < 0) return {};
+  return { older: history[i + 1], newer: i > 0 ? history[i - 1] : undefined };
 }

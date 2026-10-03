@@ -1,59 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { isInside, META_DIR, readLink, writeLink } from '../target/links';
+import { readLink, writeLink } from '../target/links';
 import { TargetStore } from '../target/TargetStore';
-import { excludeFromGit, gitArchive, gitInfo, initPracticeRepo, originOf, recentCommits } from './git';
-import { pickCommit } from './pickers';
+import { excludeFromGit, initPracticeRepo } from './git';
 import { hideFromSearch } from './search';
 
 /** Practice folders this machine knows about, so "Open Practice Folder" can find external ones. */
 export const KNOWN_KEY = 'slipstream.practiceFolders';
-
-/**
- * Create a practice folder linked to a project: where it lives (inside the
- * project by default, or anywhere) and what it starts from (a commit, or empty).
- */
-export async function startPractice(context: vscode.ExtensionContext, store: TargetStore) {
-  const project = await pickProject();
-  if (!project) return;
-  const targetRoot = project.uri.fsPath;
-
-  const defaultDir = vscode.workspace.getConfiguration('slipstream', project.uri).get<string>('defaultPracticeDir', '.slipstream/practice');
-  const inside = path.resolve(targetRoot, defaultDir);
-  const where = await vscode.window.showQuickPick(
-    [
-      { label: '$(folder) Inside this project', description: path.relative(targetRoot, inside), dir: inside },
-      { label: '$(folder-opened) Somewhere else…', description: 'pick or create any folder', dir: undefined },
-    ],
-    { title: 'Slipstream: where do you want to practise?' },
-  );
-  if (!where) return;
-  const practiceRoot =
-    where.dir ??
-    (await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Practise here' }))?.[0]?.fsPath;
-  if (!practiceRoot) return;
-  if (practiceRoot === targetRoot || isInside(targetRoot, practiceRoot)) {
-    void vscode.window.showErrorMessage('The practice folder must not be the project or contain it.');
-    return;
-  }
-
-  let seeded: string | undefined;
-  if (!hasUserFiles(practiceRoot)) {
-    seeded = await seed(targetRoot, practiceRoot);
-    if (seeded === undefined) return;
-  }
-
-  // The project's origin travels in the link, so the practice folder still finds
-  // its project after being cloned onto another machine.
-  const remote = await originOf(targetRoot);
-  writeLink(practiceRoot, targetRoot, remote ? { remote } : {});
-  await offerGitInit(practiceRoot, `Start practising ${path.basename(targetRoot)}${seeded ? ` from ${seeded.slice(0, 7)}` : ''}`);
-  const hidden = { git: await excludeFromGit(targetRoot, practiceRoot), search: await hideFromSearch(practiceRoot) };
-  await remember(context, practiceRoot);
-  store.invalidate();
-  await announce(practiceRoot, hidden);
-}
 
 /** Turn an existing folder into a practice folder for a project. */
 export async function linkPracticeFolder(context: vscode.ExtensionContext, store: TargetStore) {
@@ -105,48 +59,6 @@ export async function pickProject(): Promise<vscode.WorkspaceFolder | undefined>
   return vscode.window.showWorkspaceFolderPick({ placeHolder: 'Which project do you want to practise?' });
 }
 
-function hasUserFiles(dir: string): boolean {
-  try {
-    return fs.readdirSync(dir).some((name) => name !== META_DIR);
-  } catch {
-    return false;
-  }
-}
-
-/** Fill a new practice folder. Returns undefined if cancelled. */
-async function seed(targetRoot: string, practiceRoot: string): Promise<string | undefined> {
-  const git = await gitInfo(targetRoot);
-  type Item = vscode.QuickPickItem & { ref?: string; custom?: boolean };
-  const items: Item[] = [];
-  if (git) {
-    items.push(
-      { label: '$(git-commit) Last commit (HEAD)', description: git.dirty ? 'without the uncommitted changes' : undefined, detail: 'Use this when the agent’s changes are not committed yet: you retype exactly those changes.', ref: 'HEAD' },
-      { label: '$(history) An earlier commit…', detail: 'Pick from the history: you retype everything since then, up to your current files.', custom: true },
-    );
-  }
-  items.push({ label: '$(new-folder) Empty', detail: 'Create every file yourself.', ref: '' });
-
-  const pick = await vscode.window.showQuickPick(items, { title: 'Slipstream: what should the practice folder start from?' });
-  if (!pick) return undefined;
-  let ref = pick.ref;
-  if (pick.custom) {
-    const commits = await recentCommits(targetRoot).catch(() => []);
-    const commit = await pickCommit(targetRoot, commits, 'Slipstream: start from which commit?', { allowRevision: true });
-    if (!commit) return undefined;
-    ref = commit.hash;
-  }
-
-  fs.mkdirSync(practiceRoot, { recursive: true });
-  if (ref && git) {
-    try {
-      await gitArchive(targetRoot, `${ref}:${git.prefix}`, practiceRoot);
-    } catch (e) {
-      void vscode.window.showErrorMessage(`Could not copy ${ref}: ${(e as Error).message}`);
-      return undefined;
-    }
-  }
-  return ref;
-}
 
 export async function remember(context: vscode.ExtensionContext, practiceRoot: string) {
   const known = context.globalState.get<string[]>(KNOWN_KEY, []);

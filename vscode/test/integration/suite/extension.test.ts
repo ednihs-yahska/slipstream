@@ -871,4 +871,105 @@ describe('Slipstream', () => {
       }
     });
   });
+
+  describe('M8: separate practice folders and history', () => {
+    const sh = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, ...args], { stdio: 'pipe' }).toString().trim();
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tc-m8-int-')));
+    const src = path.join(root, 'project'); // the source: outside the workspace, never touched
+    const bare = path.join(root, 'project.git');
+    const c: string[] = [];
+    const sessionAt = (dir: string) => api().sessions.list().find((x) => x.link.practiceRoot === dir);
+    const pending = (dir: string) => (sessionAt(dir)?.pending ?? []).map((x) => `${x.kind} ${x.path}`).sort();
+    const ready = (dir: string, check: () => boolean = () => true) =>
+      eventually(async () => {
+        await api().sessions.refresh();
+        return !!sessionAt(dir)?.scanned && check();
+      }, 15000);
+
+    before(() => {
+      fs.mkdirSync(src);
+      sh(src, 'init', '-q', '-b', 'main');
+      for (const [files, msg] of [
+        [{ 'a.ts': 'a1\n' }, 'one'],
+        [{ 'a.ts': 'a1\na2\n', 'b.ts': 'b\n' }, 'two'],
+        [{ 'c.ts': 'c\n' }, 'three'],
+      ] as const) {
+        for (const [f, t] of Object.entries(files)) fs.writeFileSync(path.join(src, f), t);
+        sh(src, 'add', '-A');
+        sh(src, 'commit', '-qm', msg);
+        c.push(sh(src, 'rev-parse', 'HEAD'));
+      }
+      execFileSync('git', ['clone', '-q', '--bare', src, bare], { stdio: 'pipe' });
+    });
+
+    const local = () => path.join(project(), 'm8-local');
+
+    it('New Practice from a local folder, typing one commit, in a folder of its own', async () => {
+      const dir = await vscode.commands.executeCommand<string>('slipstream.newPractice', {
+        source: { kind: 'local', root: src },
+        start: { kind: 'commit', commit: c[1] },
+        location: local(),
+        show: false,
+      });
+      assert.strictEqual(dir, local());
+      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\n'); // the parent of "two"
+      await ready(local());
+      assert.deepStrictEqual(pending(local()), ['create b.ts', 'modify a.ts']);
+      assert.strictEqual(sh(src, 'status', '--porcelain'), ''); // the source is untouched
+    });
+
+    it('shows the history, marking the commit being typed', async () => {
+      await open(path.join(local(), 'a.ts'));
+      const nodes = await api().history.getChildren();
+      const labels = nodes.map((n) => api().history.getTreeItem(n));
+      assert.strictEqual(nodes[0].type, 'latest');
+      assert.deepStrictEqual(labels.slice(1).map((i) => i.label), ['three', 'two', 'one']);
+      assert.match(String(labels[2].description), /typing this/);
+    });
+
+    it('goes to another commit keeping my files', async () => {
+      await vscode.commands.executeCommand('slipstream.goToCommit', local(), c[2], 'keep');
+      await ready(local(), () => pending(local()).includes('create c.ts'));
+      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\n'); // untouched
+    });
+
+    it('goes to a commit to type it, committing typed work first when the practice folder is a repository', async () => {
+      sh(local(), 'init', '-q');
+      fs.writeFileSync(path.join(local(), 'typed.ts'), 'my work\n');
+      await vscode.commands.executeCommand('slipstream.goToCommit', local(), c[2], 'reset');
+      assert.ok(sh(local(), 'log', '--format=%s').includes('Practice, before moving to'), 'typed work was committed');
+      assert.strictEqual(fs.readFileSync(path.join(local(), 'a.ts'), 'utf8'), 'a1\na2\n'); // the parent of "three"
+      assert.ok(!fs.existsSync(path.join(local(), 'typed.ts')));
+      await ready(local(), () => pending(local()).join() === 'create c.ts');
+    });
+
+    it('steps older and newer through the history, then back to latest', async () => {
+      await open(path.join(local(), 'a.ts'));
+      await vscode.commands.executeCommand('slipstream.olderCommit', 'keep');
+      assert.strictEqual(sessionAtRef(local()), c[1]);
+      await vscode.commands.executeCommand('slipstream.newerCommit', 'keep');
+      assert.strictEqual(sessionAtRef(local()), c[2]);
+      await vscode.commands.executeCommand('slipstream.newerCommit', 'keep');
+      assert.strictEqual(sessionAtRef(local()), undefined); // latest: nothing pinned
+    });
+
+    it('New Practice from a git URL, from a commit to the latest', async () => {
+      const dir = path.join(project(), 'm8-remote');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'remote', remote: { url: bare } },
+        start: { kind: 'since', commit: c[0] },
+        location: dir,
+        show: false,
+      });
+      assert.strictEqual(fs.readFileSync(path.join(dir, 'a.ts'), 'utf8'), 'a1\n');
+      await ready(dir, () => pending(dir).length === 3);
+      assert.strictEqual(sessionAt(dir)!.link.source, 'remote');
+      assert.deepStrictEqual(pending(dir), ['create b.ts', 'create c.ts', 'modify a.ts']);
+    });
+
+    function sessionAtRef(dir: string): string | undefined {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
+      return raw.ref;
+    }
+  });
 });
