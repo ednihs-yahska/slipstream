@@ -47,6 +47,11 @@ Run **Slipstream: New Practice…** from any window. No project needs to be open
    - **Type one commit:** the practice folder starts at its parent, and you retype exactly what it changed.
    - **From a commit to the latest:** it starts at that commit, and you retype everything since.
    - **Empty:** you retype the whole project.
+   - **Commit by commit:** from the first commit (or one you pick) to the latest, one commit at a
+     time. When a commit is typed, you make the commit yourself: **Commit** reuses the original
+     message, **Edit Message…** lets you change it first, and **Next Without Committing** skips the
+     commit. Each then moves on to the next commit. The first commit makes the practice folder a git
+     repository if it isn't one. The same actions are on the practice folder in the Steps view.
 4. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
    `slipstream.practiceHome`). It can be a git repository too; New Practice offers to make one.
 

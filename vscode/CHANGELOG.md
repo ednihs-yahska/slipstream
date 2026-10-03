@@ -14,6 +14,11 @@
   tip is Latest. The new folder opens in the same window when that window is empty, or **Open Here**
   when it isn't. Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
   (`slipstream.practiceHome`); the in-project option is gone.
+- **Commit by commit:** a New Practice start that replays the history from the first commit (or one you
+  pick) to the latest. When a commit is typed, **Commit** commits your work with the original message,
+  **Edit Message…** lets you change it, and **Next Without Committing** skips it; each moves on.
+- Fixed: making a practice folder a git repository wrote a top-level `.gitignore`, which then showed up
+  as a step ("delete .gitignore"). The rule for `link.local.json` now lives in `.slipstream/.gitignore`.
 - **History view:** the source's commits under **Latest**, with the one you're typing towards marked.
   Click a commit, or use **Older** / **Newer**. Each move asks: **type this commit** (reset the
   practice folder to its parent; your work is committed first in a practice repository, otherwise

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { extractAt, neighbours, recentCommits, resettableEntries, saveIfRepo } from '../../src/practice/git';
+import { commitsInRange, extractAt, firstCommit, messageOf, neighbours, recentCommits, resettableEntries, saveIfRepo } from '../../src/practice/git';
 import { ensureClone } from '../../src/target/remotes';
 
 const tmp = () => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tc-m8-')));
@@ -54,6 +54,23 @@ describe('history of a folder', () => {
     // Git on Windows may convert line endings (core.autocrlf); Slipstream normalizes them anyway.
     expect(fs.readFileSync(path.join(dest, 'a.ts'), 'utf8').replace(/\r\n/g, '\n')).toBe('a1\n');
     expect(fs.existsSync(path.join(dest, 'other.txt'))).toBe(false);
+  });
+});
+
+describe('commit by commit', () => {
+  it('finds the first commit and the range touching a folder, from a bare clone too', async () => {
+    const dir = await ensureClone({ url: bare, path: 'app' });
+    expect(await firstCommit(dir, 'main')).toBe(hashes[0]);
+    expect(await commitsInRange(dir, hashes[0], 'main')).toEqual([hashes[0], hashes[2]]); // "outside app" doesn't touch it
+    expect(await commitsInRange(path.join(work, 'app'), hashes[0], 'HEAD')).toEqual([hashes[0], hashes[2]]);
+    expect(await messageOf(dir, hashes[2])).toBe('two');
+  });
+
+  it('extracting a folder that a commit does not have yet extracts nothing', async () => {
+    const dir = await ensureClone({ url: bare, path: 'not-there-yet' });
+    const dest = tmp();
+    await extractAt(dir, hashes[2], dest);
+    expect(fs.readdirSync(dest)).toEqual([]);
   });
 });
 

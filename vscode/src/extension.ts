@@ -19,7 +19,7 @@ import { linkPracticeFolder, openPracticeFolder } from './practice/practice';
 import { goToCommit, HistoryView, Mode, stepHistory, switchBranch } from './history/history';
 import { newPractice, NewPracticeArgs } from './practice/newPractice';
 import { clearLocalCheckout, clonePracticeRepo, pickLocalCheckout, storeProgress } from './practice/portable';
-import { replayCommit, replayContinue, replayNextCommit, replayRange } from './practice/replay';
+import { commitAndNext, replayCommit, replayContinue, replayNextCommit, replayRange } from './practice/replay';
 import { GIT_SCHEME, GitTargetProvider } from './target/gitTarget';
 import { Session, Sessions } from './steps/Sessions';
 import { Node, registerStepCommands, StepsView } from './steps/StepsView';
@@ -261,6 +261,14 @@ export function activate(context: vscode.ExtensionContext): SlipstreamApi {
     vscode.commands.registerCommand('slipstream.storeProgress', (arg?: string | Node) => storeProgress(sessions, rootOf(arg))),
     vscode.commands.registerCommand('slipstream.replayCommit', () => replayCommit(context, store)),
     vscode.commands.registerCommand('slipstream.replayRange', () => replayRange(context, store)),
+    vscode.commands.registerCommand('slipstream.commitAndNext', (arg?: string | Node, how?: 'original' | 'edit' | 'skip') => {
+      const session = replaySession(arg);
+      return commitAndNext(store, session?.link.practiceRoot ?? rootOf(arg), how ?? 'original', session?.pending.length ?? 0);
+    }),
+    vscode.commands.registerCommand('slipstream.commitEditedAndNext', (arg?: string | Node) => {
+      const session = replaySession(arg);
+      return commitAndNext(store, session?.link.practiceRoot ?? rootOf(arg), 'edit', session?.pending.length ?? 0);
+    }),
     vscode.commands.registerCommand('slipstream.replayNextCommit', (arg?: string | Node) => {
       const session = replaySession(arg);
       return replayNextCommit(store, session?.link.practiceRoot ?? rootOf(arg), session?.pending.length ?? 0);

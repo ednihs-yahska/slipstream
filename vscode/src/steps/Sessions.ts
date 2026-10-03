@@ -529,11 +529,16 @@ export class Sessions implements vscode.Disposable {
     const hasNext = !!replay && replay.index + 1 < replay.commits.length;
     // At the end of a replay, there may be more to type: later commits and uncommitted work.
     const canContinue = !!s.link.pinned && !hasNext && (await moreAfter(s.link));
-    const actions = [...(hasNext ? ['Next Commit'] : []), ...(canContinue ? ['Continue to Current Files'] : [])];
+    // The commit is yours to make: the original message, an edited one, or none.
+    const commit = s.link.pinned ? ['Commit', 'Edit Message…'] : [];
+    const actions = [...commit, ...(hasNext ? [commit.length ? 'Next Without Committing' : 'Next Commit'] : []), ...(canContinue ? ['Continue to Current Files'] : [])];
     const pace = this.pace(s);
     const left = s.laterChars > 0 ? ` ~${formatDurationLeft(pace.project)} left in this replay.` : '';
     const choice = await vscode.window.showInformationMessage(`${what}. ${summarize(s.stats)}${left}`, ...actions);
-    if (choice === 'Next Commit') await vscode.commands.executeCommand('slipstream.replayNextCommit', s.link.practiceRoot);
+    const root = s.link.practiceRoot;
+    if (choice === 'Commit') await vscode.commands.executeCommand('slipstream.commitAndNext', root, 'original');
+    if (choice === 'Edit Message…') await vscode.commands.executeCommand('slipstream.commitAndNext', root, 'edit');
+    if (choice === 'Next Without Committing' || choice === 'Next Commit') await vscode.commands.executeCommand('slipstream.replayNextCommit', root);
     if (choice === 'Continue to Current Files') await vscode.commands.executeCommand('slipstream.replayContinue', s.link.practiceRoot);
   }
 

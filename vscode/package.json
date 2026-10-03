@@ -155,6 +155,18 @@
         "icon": "$(history)"
       },
       {
+        "command": "slipstream.commitAndNext",
+        "title": "Commit with the Original Message, Then Next",
+        "category": "Slipstream",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "slipstream.commitEditedAndNext",
+        "title": "Commit with an Edited Message, Then Next",
+        "category": "Slipstream",
+        "icon": "$(edit)"
+      },
+      {
         "command": "slipstream.replayNextCommit",
         "title": "Next Commit",
         "category": "Slipstream",
@@ -605,6 +617,21 @@
           "command": "slipstream.replayNextCommit",
           "when": "view == slipstream.steps && viewItem == session-replay",
           "group": "inline"
+        },
+        {
+          "command": "slipstream.commitAndNext",
+          "when": "view == slipstream.steps && viewItem =~ /^session-replay/",
+          "group": "inline@0"
+        },
+        {
+          "command": "slipstream.commitAndNext",
+          "when": "view == slipstream.steps && viewItem =~ /^session-replay/",
+          "group": "0_replay@0"
+        },
+        {
+          "command": "slipstream.commitEditedAndNext",
+          "when": "view == slipstream.steps && viewItem =~ /^session-replay/",
+          "group": "0_replay@0"
         },
         {
           "command": "slipstream.replayNextCommit",

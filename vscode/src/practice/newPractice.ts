@@ -6,7 +6,7 @@ import { log } from '../log';
 import { isInside, writeLink } from '../target/links';
 import { cacheDirFor, ensureClone, fetchRemote, isCloned, Remote } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
-import { Branch, branches, Commit, extractAt, originOf, parentOf, recentCommits } from './git';
+import { Branch, branches, Commit, commitsInRange, extractAt, firstCommit, originOf, parentOf, recentCommits } from './git';
 import { pickBranch, pickCommit } from './pickers';
 import { offerGitInit, remember } from './practice';
 
@@ -15,13 +15,20 @@ import { offerGitInit, remember } from './practice';
  * towards a source — a local folder or a git URL — from a starting point:
  *   - one commit (the folder starts at its parent; you type exactly that commit);
  *   - a commit to the latest (the folder starts at the commit; you type everything since);
- *   - empty (you type the whole project).
+ *   - empty (you type the whole project);
+ *   - commit by commit (from the first commit, or one you pick, to the latest;
+ *     you commit what you typed as you go: see commitAndNext).
  * When the source has more than one branch, you pick the branch first: its
  * commits are the ones offered, and its tip is "Latest".
  * Works from any window; no project needs to be open.
  */
 export type SourceChoice = { kind: 'local'; root: string } | { kind: 'remote'; remote: Remote };
-export type StartChoice = { kind: 'commit'; commit: string } | { kind: 'since'; commit: string } | { kind: 'empty' };
+export type StartChoice =
+  | { kind: 'commit'; commit: string }
+  | { kind: 'since'; commit: string }
+  | { kind: 'empty' }
+  /** Each commit in turn, from `from` (undefined: the first) to the branch's latest. */
+  | { kind: 'each'; from?: string };
 
 export interface NewPracticeArgs {
   source?: SourceChoice;
@@ -50,10 +57,25 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
   if (branch === null) return undefined;
   // Only a branch other than the current/default one is written down: without one, links follow HEAD as before.
   const chosen = branch && !branch.current ? branch.name : undefined;
-  const history = await recentCommits(gitDir, 200, chosen ?? (source.kind === 'remote' ? (source.remote.ref ?? 'HEAD') : 'HEAD')).catch(() => [] as Commit[]);
+  const tip = chosen ?? (source.kind === 'remote' ? (source.remote.ref ?? 'HEAD') : 'HEAD');
+  const history = await recentCommits(gitDir, 200, tip).catch(() => [] as Commit[]);
 
   const start = args.start ?? (await pickStart(gitDir, history));
   if (!start) return undefined;
+  let replay: string[] | undefined;
+  if (start.kind === 'each') {
+    try {
+      const from = start.from ?? (await firstCommit(gitDir, tip));
+      replay = from ? await commitsInRange(gitDir, from, tip) : [];
+    } catch (e) {
+      void vscode.window.showErrorMessage((e as Error).message);
+      return undefined;
+    }
+    if (!replay.length) {
+      void vscode.window.showErrorMessage('There are no commits to type.');
+      return undefined;
+    }
+  }
 
   const name = sourceName(source);
   const location = args.location ?? (await pickLocation(name, source));
@@ -65,8 +87,9 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
     return undefined;
   }
   try {
-    if (start.kind === 'commit') {
-      const parent = await parentOf(gitDir, start.commit);
+    const first = start.kind === 'commit' ? start.commit : replay?.[0];
+    if (first) {
+      const parent = await parentOf(gitDir, first);
       if (parent) await extractAt(gitDir, parent, location);
     } else if (start.kind === 'since') {
       await extractAt(gitDir, start.commit, location);
@@ -77,23 +100,25 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
     return undefined;
   }
 
-  const ref = start.kind === 'commit' ? start.commit : undefined;
+  const ref = start.kind === 'commit' ? start.commit : replay?.[0];
+  const each = replay && replay.length > 1 ? { replay: { commits: replay, index: 0 } } : {};
   if (source.kind === 'local') {
     const origin = await originOf(source.root);
     // A remote-tracking branch (origin/x) is x on the remote, for a clone of the practice folder elsewhere.
     const onRemote = chosen && origin ? { ...origin, ref: chosen.replace(/^origin\//, '') } : origin;
-    writeLink(location, source.root, { ...(ref ? { ref } : {}), ...(chosen ? { branch: chosen } : {}), ...(onRemote ? { remote: onRemote } : {}) });
+    writeLink(location, source.root, { ...(ref ? { ref } : {}), ...each, ...(chosen ? { branch: chosen } : {}), ...(onRemote ? { remote: onRemote } : {}) });
   } else {
     // No local project: the link carries only the remote. A path can be added per machine later.
     const remote = chosen ? { ...source.remote, ref: chosen } : source.remote;
     fs.mkdirSync(path.join(location, '.slipstream'), { recursive: true });
-    fs.writeFileSync(path.join(location, '.slipstream', 'link.json'), JSON.stringify({ remote, ...(ref ? { ref } : {}) }, null, 2) + '\n');
+    fs.writeFileSync(path.join(location, '.slipstream', 'link.json'), JSON.stringify({ remote, ...(ref ? { ref } : {}), ...each }, null, 2) + '\n');
   }
   await remember(context, location);
   store.invalidate();
   if (args.show === false) return location;
 
-  await offerGitInit(location, `Start practising ${name}${chosen ? ` on ${chosen}` : ''}${ref ? ` (commit ${ref.slice(0, 7)})` : ''}`);
+  // Commit by commit: the practice repository's first commit is the first one you type, so don't make one now.
+  if (start.kind !== 'each') await offerGitInit(location, `Start practising ${name}${chosen ? ` on ${chosen}` : ''}${ref ? ` (commit ${ref.slice(0, 7)})` : ''}`);
   const uri = vscode.Uri.file(location);
   // An empty window has nothing to lose: the practice folder simply opens in it.
   if (!vscode.workspace.workspaceFolders?.length) {
@@ -153,6 +178,7 @@ async function pickStart(gitDir: string, history: Commit[]): Promise<StartChoice
       ? [
           { label: '$(git-commit) Type one commit…', detail: 'Start at its parent and retype exactly what it changed', start: 'commit' as const },
           { label: '$(history) From a commit to the latest…', detail: 'Start at that commit and retype everything since', start: 'since' as const },
+          { label: '$(debug-step-over) Commit by commit…', detail: 'Retype each commit in turn, from the first (or one you pick) to the latest, and commit as you go', start: 'each' as const },
         ]
       : []),
     { label: '$(new-folder) Empty', detail: 'Retype the whole project', start: 'empty' },
@@ -160,6 +186,19 @@ async function pickStart(gitDir: string, history: Commit[]): Promise<StartChoice
   const pick = await vscode.window.showQuickPick(items, { title: 'Slipstream: where do you want to start?' });
   if (!pick) return undefined;
   if (pick.start === 'empty') return { kind: 'empty' };
+  if (pick.start === 'each') {
+    const from = await vscode.window.showQuickPick(
+      [
+        { label: '$(debug-start) From the first commit', detail: 'The whole history, from an empty folder', first: true },
+        { label: '$(git-commit) From a commit…', detail: 'Start at that commit’s parent', first: false },
+      ],
+      { title: 'Slipstream: commit by commit, starting where?' },
+    );
+    if (!from) return undefined;
+    if (from.first) return { kind: 'each' };
+    const commit = await pickCommit(gitDir, history, 'Slipstream: the first commit to type', { allowRevision: true, newestIsHead: true });
+    return commit ? { kind: 'each', from: commit.hash } : undefined;
+  }
   const commit = await pickCommit(gitDir, history, pick.start === 'commit' ? 'Slipstream: which commit do you want to type?' : 'Slipstream: start from which commit?', {
     allowRevision: true,
     newestIsHead: true,

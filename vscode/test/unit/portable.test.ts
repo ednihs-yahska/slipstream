@@ -141,9 +141,10 @@ describe('a practice folder as its own repository', () => {
     const practice = tmp();
     fs.writeFileSync(path.join(practice, 'x.ts'), 'x');
     expect(await initPracticeRepo(practice, 'Start practising')).toEqual({ committed: true });
-    expect(fs.readFileSync(path.join(practice, '.gitignore'), 'utf8')).toContain('.slipstream/link.local.json');
+    expect(fs.readFileSync(path.join(practice, '.slipstream/.gitignore'), 'utf8')).toContain('link.local.json');
+    expect(fs.existsSync(path.join(practice, '.gitignore'))).toBe(false); // it would be a practice file, and a step
     expect(git(practice, 'log', '--format=%s')).toBe('Start practising');
-    fs.mkdirSync(path.join(practice, '.slipstream'));
+    fs.mkdirSync(path.join(practice, '.slipstream'), { recursive: true });
     fs.writeFileSync(path.join(practice, '.slipstream/link.local.json'), '{}');
     expect(git(practice, 'status', '--porcelain')).toBe('');
   });
