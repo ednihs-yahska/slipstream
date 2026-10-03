@@ -4,6 +4,9 @@
 
 **Practice folders of their own, and moving through history.**
 
+- Listed as **Slipstream Review**. The extension ID stays `EdnihsYahska.slipstream-practice`, so
+  installs of 0.3.0 update in place.
+
 - **New Practice…** replaces Start Practice and works from any window. Practise a **local folder** or a
   **git URL** (fetched into a cache, optionally a folder inside the repository), starting from **one
   commit** (you retype exactly that commit), **a commit to the latest**, or **empty** (the whole

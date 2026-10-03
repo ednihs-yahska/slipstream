@@ -1,6 +1,6 @@
 {
   "name": "slipstream-practice",
-  "displayName": "Slipstream Practice",
+  "displayName": "Slipstream Review",
   "description": "Draft behind your AI agent: it writes the code, you retype it with its changes as ghost text. Tab accepts a word, Shift+Tab a line. Or replay any repo's git history, one commit at a time.",
   "version": "0.5.0",
   "publisher": "EdnihsYahska",
