@@ -116,6 +116,19 @@ describe('Slipstream', () => {
     assert.strictEqual(editor.document.lineAt(1).text, 'export function greet(name: string): string {');
   });
 
+  it('jumps past the line break that opens a change at the end of a line', async () => {
+    fs.writeFileSync(path.join(project(), 'src/jump.ts'), 'if (ready) {\n  go();\n}\n');
+    const editor = await open(practice('src/jump.ts'), 'if (ready) {');
+    placeCursor(editor, 0);
+    await vscode.commands.executeCommand('slipstream.nextChange');
+    // On the change's first line of code, indented, not at the end of the line above.
+    assert.strictEqual(editor.selection.active.line, 1);
+    assert.strictEqual(editor.selection.active.character, 2);
+    assert.strictEqual(lf(editor.document.getText()), 'if (ready) {\n  ');
+    await vscode.commands.executeCommand('slipstream.acceptLine');
+    assert.strictEqual(lf(editor.document.lineAt(1).text), '  go();');
+  });
+
   for (const file of ['src/math.ts', 'src/greet.ts']) {
     it(`accepting every change reproduces the target exactly (${file})`, async () => {
       // Lenient mode would (rightly) call it done before the last blank line.

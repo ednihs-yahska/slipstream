@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeHunks } from '../../src/diff/hunks';
-import { filterWhitespace, ghostAt, lineCol, needsRoom, targetRange } from '../../src/diff/tolerance';
+import { filterWhitespace, ghostAt, leadingBreak, lineCol, needsRoom, targetRange } from '../../src/diff/tolerance';
 
 const lenient = (real: string, target: string) => filterWhitespace(real, computeHunks(real, target));
 
@@ -100,5 +100,23 @@ describe('needsRoom', () => {
     expect(needsRoom(eol, ghostFor(eol, 'a();\nb();\n', 5), 5)).toBe(false);
     const mid = 'foo()\n';
     expect(needsRoom(mid, ghostFor(mid, 'foo(a, b)\n', 4), 4)).toBe(false); // ")" follows, but the ghost is part of this line
+  });
+});
+
+describe('leadingBreak', () => {
+  const ghostFor = (real: string, target: string, cursor: number) => ghostAt(real, computeHunks(real, target), cursor)!;
+
+  it('is the line break and indentation in front of a change that starts at the end of a line', () => {
+    const real = 'if (x) {';
+    expect(leadingBreak(ghostFor(real, 'if (x) {\n  go();', 8), 8)).toBe('\n  ');
+    expect(leadingBreak(ghostFor(real, 'if (x) {\r\n\r\n  go();', 8), 8)).toBe('\r\n\r\n  '); // blank lines too, any line ending
+  });
+
+  it('is nothing for a ghost that starts with code, is only whitespace, or follows a mistake', () => {
+    const eol = 'a();\n';
+    expect(leadingBreak(ghostFor(eol, 'a();\nb();\n', 5), 5)).toBeUndefined();
+    expect(leadingBreak(ghostFor('a();', 'a();\n\n', 4), 4)).toBeUndefined();
+    const typo = 'if (x) {q';
+    expect(leadingBreak(ghostFor(typo, 'if (x) {\n  go();', 9), 9)).toBeUndefined();
   });
 });
