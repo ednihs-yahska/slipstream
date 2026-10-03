@@ -40,11 +40,14 @@ Run **Slipstream: New Practice…** from any window. No project needs to be open
 
 1. **What to practise:** a local folder (the project open in this window, or any other), or a **git
    URL**, which Slipstream fetches into a cache, with an optional folder inside the repository.
-2. **Where to start:**
+2. **Which branch**, if it has more than one: its commits are the ones offered next, and its tip is
+   **Latest**. For a local folder, a branch other than the one checked out is read from git; the
+   checked-out one is the project as it is now, uncommitted changes included.
+3. **Where to start:**
    - **Type one commit:** the practice folder starts at its parent, and you retype exactly what it changed.
    - **From a commit to the latest:** it starts at that commit, and you retype everything since.
    - **Empty:** you retype the whole project.
-3. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
+4. **Where it lives:** a folder of its own, outside the project (`~/Slipstream/<project>` by default,
    `slipstream.practiceHome`). It can be a git repository too; New Practice offers to make one.
 
 Open the practice folder and work through the **Steps** view. Your project is never touched: commits

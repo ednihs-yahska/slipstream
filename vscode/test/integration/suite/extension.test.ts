@@ -967,6 +967,44 @@ describe('Slipstream', () => {
       assert.deepStrictEqual(pending(dir), ['create b.ts', 'create c.ts', 'modify a.ts']);
     });
 
+    it('New Practice on a branch other than the one checked out, locally and from a git URL', async () => {
+      sh(src, 'checkout', '-q', '-b', 'feature');
+      fs.writeFileSync(path.join(src, 'f.ts'), 'f\n');
+      sh(src, 'add', '-A');
+      sh(src, 'commit', '-qm', 'four, on feature');
+      sh(src, 'checkout', '-q', 'main');
+      const bare2 = path.join(root, 'project-branches.git');
+      execFileSync('git', ['clone', '-q', '--bare', src, bare2], { stdio: 'pipe' });
+
+      const dir = path.join(project(), 'm8-branch');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'local', root: src },
+        branch: 'feature',
+        start: { kind: 'since', commit: c[2] },
+        location: dir,
+        show: false,
+      });
+      await ready(dir, () => pending(dir).length === 1);
+      assert.deepStrictEqual(pending(dir), ['create f.ts']); // feature's tip, though main is checked out
+      await open(path.join(dir, 'a.ts'));
+      const nodes = await api().history.getChildren();
+      const items = nodes.map((n) => api().history.getTreeItem(n));
+      assert.match(String(items[0].description), /feature/);
+      assert.strictEqual(items[1].label, 'four, on feature');
+
+      const remote = path.join(project(), 'm8-branch-remote');
+      await vscode.commands.executeCommand('slipstream.newPractice', {
+        source: { kind: 'remote', remote: { url: bare2 } },
+        branch: 'feature',
+        start: { kind: 'since', commit: c[2] },
+        location: remote,
+        show: false,
+      });
+      assert.strictEqual(JSON.parse(fs.readFileSync(path.join(remote, '.slipstream/link.json'), 'utf8')).remote.ref, 'feature');
+      await ready(remote, () => pending(remote).length === 1);
+      assert.deepStrictEqual(pending(remote), ['create f.ts']);
+    });
+
     function sessionAtRef(dir: string): string | undefined {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, '.slipstream/link.json'), 'utf8'));
       return raw.ref;

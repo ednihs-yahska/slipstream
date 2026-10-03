@@ -6,7 +6,7 @@ import { log } from '../log';
 import { isInside, writeLink } from '../target/links';
 import { ensureClone, Remote } from '../target/remotes';
 import { TargetStore } from '../target/TargetStore';
-import { Commit, extractAt, originOf, parentOf, recentCommits } from './git';
+import { Branch, branches, Commit, extractAt, originOf, parentOf, recentCommits } from './git';
 import { pickCommit } from './pickers';
 import { offerGitInit, remember } from './practice';
 
@@ -16,6 +16,8 @@ import { offerGitInit, remember } from './practice';
  *   - one commit (the folder starts at its parent; you type exactly that commit);
  *   - a commit to the latest (the folder starts at the commit; you type everything since);
  *   - empty (you type the whole project).
+ * When the source has more than one branch, you pick the branch first: its
+ * commits are the ones offered, and its tip is "Latest".
  * Works from any window; no project needs to be open.
  */
 export type SourceChoice = { kind: 'local'; root: string } | { kind: 'remote'; remote: Remote };
@@ -23,6 +25,8 @@ export type StartChoice = { kind: 'commit'; commit: string } | { kind: 'since'; 
 
 export interface NewPracticeArgs {
   source?: SourceChoice;
+  /** The branch to practise; asked if the source has more than one. Undefined = the current/default branch. */
+  branch?: string;
   start?: StartChoice;
   location?: string;
   /** false: no prompts after creation (tests). */
@@ -41,7 +45,12 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
     void vscode.window.showErrorMessage(`Could not fetch ${source.kind === 'remote' ? source.remote.url : ''}: ${(e as Error).message.split('\n')[0]}`);
     return undefined;
   }
-  const history = await recentCommits(gitDir, 200, source.kind === 'remote' ? (source.remote.ref ?? 'HEAD') : 'HEAD').catch(() => [] as Commit[]);
+  const known = await branches(gitDir).catch(() => [] as Branch[]);
+  const branch = args.branch !== undefined ? known.find((b) => b.name === args.branch) ?? { name: args.branch, current: false } : await pickBranch(known, source.kind === 'remote' ? 'default' : 'checked out');
+  if (branch === null) return undefined;
+  // Only a branch other than the current/default one is written down: without one, links follow HEAD as before.
+  const chosen = branch && !branch.current ? branch.name : undefined;
+  const history = await recentCommits(gitDir, 200, chosen ?? (source.kind === 'remote' ? (source.remote.ref ?? 'HEAD') : 'HEAD')).catch(() => [] as Commit[]);
 
   const start = args.start ?? (await pickStart(gitDir, history));
   if (!start) return undefined;
@@ -71,17 +80,20 @@ export async function newPractice(context: vscode.ExtensionContext, store: Targe
   const ref = start.kind === 'commit' ? start.commit : undefined;
   if (source.kind === 'local') {
     const origin = await originOf(source.root);
-    writeLink(location, source.root, { ...(ref ? { ref } : {}), ...(origin ? { remote: origin } : {}) });
+    // A remote-tracking branch (origin/x) is x on the remote, for a clone of the practice folder elsewhere.
+    const onRemote = chosen && origin ? { ...origin, ref: chosen.replace(/^origin\//, '') } : origin;
+    writeLink(location, source.root, { ...(ref ? { ref } : {}), ...(chosen ? { branch: chosen } : {}), ...(onRemote ? { remote: onRemote } : {}) });
   } else {
     // No local project: the link carries only the remote. A path can be added per machine later.
+    const remote = chosen ? { ...source.remote, ref: chosen } : source.remote;
     fs.mkdirSync(path.join(location, '.slipstream'), { recursive: true });
-    fs.writeFileSync(path.join(location, '.slipstream', 'link.json'), JSON.stringify({ remote: source.remote, ...(ref ? { ref } : {}) }, null, 2) + '\n');
+    fs.writeFileSync(path.join(location, '.slipstream', 'link.json'), JSON.stringify({ remote, ...(ref ? { ref } : {}) }, null, 2) + '\n');
   }
   await remember(context, location);
   store.invalidate();
   if (args.show === false) return location;
 
-  await offerGitInit(location, `Start practising ${name}${ref ? ` (commit ${ref.slice(0, 7)})` : ''}`);
+  await offerGitInit(location, `Start practising ${name}${chosen ? ` on ${chosen}` : ''}${ref ? ` (commit ${ref.slice(0, 7)})` : ''}`);
   const choice = await vscode.window.showInformationMessage(
     `Practice folder ready: ${location}. Open it and work through the Steps view; the History view moves between commits.`,
     'Open in New Window',
@@ -124,6 +136,21 @@ async function pickSource(): Promise<SourceChoice | undefined> {
   });
   if (sub === undefined) return undefined;
   return { kind: 'remote', remote: { url: url.trim(), ...(sub.trim() ? { path: sub.trim().replace(/^\/+|\/+$/g, '') } : {}) } };
+}
+
+/** Undefined: there's only one branch (or none), nothing to ask. Null: cancelled. */
+async function pickBranch(known: Branch[], currentIs: string): Promise<Branch | undefined | null> {
+  if (known.length < 2) return undefined;
+  type Item = vscode.QuickPickItem & { branch: Branch };
+  const pick = await vscode.window.showQuickPick<Item>(
+    known.map((b) => ({
+      label: `$(git-branch) ${b.name}`,
+      ...(b.current ? { description: currentIs } : {}),
+      branch: b,
+    })),
+    { title: 'Slipstream: which branch?', placeHolder: 'Its commits are the ones you can pick from, and its tip is “Latest”' },
+  );
+  return pick ? pick.branch : null;
 }
 
 async function pickStart(gitDir: string, history: Commit[]): Promise<StartChoice | undefined> {

@@ -115,6 +115,34 @@ export async function recentCommits(dir: string, max = 200, ref = 'HEAD'): Promi
     });
 }
 
+export interface Branch {
+  name: string;
+  /** The checked-out branch of a working tree, or a clone's default branch. */
+  current: boolean;
+}
+
+/**
+ * Branches to practise from, the current (or default) one first. A working
+ * tree adds its remote-tracking branches that have no local branch of the
+ * same name; a bare clone (a remote's cache) mirrors the remote's branches as
+ * its own.
+ */
+export async function branches(dir: string): Promise<Branch[]> {
+  const { stdout: head } = await run('git', ['-C', dir, 'symbolic-ref', '--quiet', '--short', 'HEAD']).catch(() => ({ stdout: '' }));
+  const current = head.trim();
+  const { stdout: local } = await run('git', ['-C', dir, 'for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+  const { stdout: tracking } = await run('git', ['-C', dir, 'for-each-ref', '--format=%(refname:short)%09%(symref)', 'refs/remotes']).catch(() => ({ stdout: '' }));
+  const names = local.split('\n').filter(Boolean);
+  for (const line of tracking.split('\n').filter(Boolean)) {
+    const [name, symref] = line.split('\t');
+    if (symref) continue; // origin/HEAD
+    if (!names.includes(name.replace(/^[^/]+\//, ''))) names.push(name);
+  }
+  return names
+    .map((name) => ({ name, current: name === current }))
+    .sort((a, b) => Number(b.current) - Number(a.current));
+}
+
 /** Full hash of a revision. */
 export async function resolveRev(dir: string, rev: string): Promise<string> {
   const { stdout } = await run('git', ['-C', dir, 'rev-parse', '--verify', '--quiet', `${rev}^{commit}`]);

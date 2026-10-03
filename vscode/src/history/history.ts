@@ -38,8 +38,9 @@ export class HistoryView implements vscode.TreeDataProvider<Node> {
 
   async commits(session: Session): Promise<Commit[]> {
     const link = session.link;
-    const branch = link.source === 'remote' ? (link.remote?.ref ?? 'HEAD') : 'HEAD';
-    const key = `${link.targetRoot}|${branch}|${link.source === 'remote' ? link.ref : ''}`;
+    const branch = link.branch ?? 'HEAD';
+    // The resolved commit is in the key whenever a branch is read from git, so a moved branch is re-read.
+    const key = `${link.targetRoot}|${branch}|${link.pinned ? '' : (link.ref ?? '')}`;
     const hit = this.cache.get(link.practiceRoot);
     if (hit?.key === key) return hit.commits;
     const commits = await recentCommits(link.targetRoot, 200, branch).catch(() => [] as Commit[]);
@@ -60,7 +61,15 @@ export class HistoryView implements vscode.TreeDataProvider<Node> {
     if (node.type === 'latest') {
       const here = !pinned;
       const item = new vscode.TreeItem(here ? 'Latest  (typing towards this)' : 'Latest');
-      item.description = node.session.link.source === 'remote' ? `${node.session.link.remote?.ref ?? 'default branch'} on the remote` : 'the project as it is now';
+      const { link } = node.session;
+      item.description =
+        link.source === 'remote'
+          ? `${link.branch ?? 'default branch'} on the remote`
+          : link.branch && !link.pinned && link.ref
+            ? `${link.branch}, as last committed`
+            : link.branch
+              ? `${link.branch}, the project as it is now`
+              : 'the project as it is now';
       item.iconPath = new vscode.ThemeIcon(here ? 'circle-filled' : 'circle-outline');
       item.command = { title: 'Go here', command: 'slipstream.goToCommit', arguments: [root, 'latest'] };
       item.contextValue = 'latest';

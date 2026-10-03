@@ -7,7 +7,8 @@
 - **New Practice…** replaces Start Practice and works from any window. Practise a **local folder** or a
   **git URL** (fetched into a cache, optionally a folder inside the repository), starting from **one
   commit** (you retype exactly that commit), **a commit to the latest**, or **empty** (the whole
-  project). Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
+  project). With more than one **branch**, you pick the branch first: its commits are offered, and its
+  tip is Latest. Practice folders are created **outside the project**, in `~/Slipstream/<project>` by default
   (`slipstream.practiceHome`); the in-project option is gone.
 - **History view:** the source's commits under **Latest**, with the one you're typing towards marked.
   Click a commit, or use **Older** / **Newer**. Each move asks: **type this commit** (reset the
