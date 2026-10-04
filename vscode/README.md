@@ -16,8 +16,11 @@ outdent as usual. There's deliberately no key to accept a whole block: the point
 
 No agent? **Replay any repository's git history** and retype it commit by commit.
 
-> **Pre-release.** Slipstream 0.3.0 is on the Marketplace's pre-release channel: on its page, choose
+> **Pre-release.** Slipstream is on the Marketplace's pre-release channel: on its page, choose
 > *Switch to Pre-Release Version*. Feedback and issues: <https://github.com/ednihs-yahska/slipstream/issues>.
+
+> **Desktop VS Code only.** Slipstream runs `git` and uses Node.js, so it isn't available in VS Code for
+> the Web (vscode.dev, github.dev). It needs `git` on your PATH.
 
 ## Practice modes
 
